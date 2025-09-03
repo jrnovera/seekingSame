@@ -1,0 +1,487 @@
+import React, { useState, useCallback, useEffect } from 'react';
+import styled from 'styled-components';
+import { FaMapMarkerAlt, FaSearchLocation, FaMapMarked } from 'react-icons/fa';
+
+const MapPicker = ({ 
+  apiKey, 
+  initialLocation, 
+  onLocationSelect, 
+  onClose,
+  address
+}) => {
+  // Prevent clicks inside the component from closing the modal
+  const handleContainerClick = (e) => {
+    e.stopPropagation();
+  };
+  
+  const [map, setMap] = useState(null);
+  const [marker, setMarker] = useState(null);
+  const [searchInput, setSearchInput] = useState('');
+  const [selectedLocation, setSelectedLocation] = useState(initialLocation || { lat: 40.7128, lng: -74.006 });
+  const [isLoaded, setIsLoaded] = useState(false);
+  const [addressDetails, setAddressDetails] = useState({
+    street: '',
+    unit: '',
+    city: '',
+    state: '',
+    zipCode: '',
+    country: ''
+  });
+  const [isReverseGeocoding, setIsReverseGeocoding] = useState(false);
+
+  // Parse address components from Google geocoding results
+  const parseAddressComponents = (addressComponents) => {
+    const addressData = {
+      street: '',
+      unit: '',
+      city: '',
+      state: '',
+      zipCode: '',
+      country: ''
+    };
+    
+    addressComponents.forEach(component => {
+      const types = component.types;
+      
+      if (types.includes('street_number')) {
+        addressData.street = component.long_name + ' ';
+      }
+      
+      if (types.includes('route')) {
+        addressData.street += component.long_name;
+      }
+      
+      if (types.includes('subpremise')) {
+        addressData.unit = component.long_name;
+      }
+      
+      if (types.includes('locality') || types.includes('sublocality')) {
+        addressData.city = component.long_name;
+      }
+      
+      if (types.includes('administrative_area_level_1')) {
+        addressData.state = component.short_name;
+      }
+      
+      if (types.includes('postal_code')) {
+        addressData.zipCode = component.long_name;
+      }
+      
+      if (types.includes('country')) {
+        addressData.country = component.long_name;
+      }
+    });
+    
+    return addressData;
+  };
+
+  // Initialize map
+  useEffect(() => {
+    // Load Google Maps API script
+    if (!window.google) {
+      const script = document.createElement('script');
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`;
+      script.async = true;
+      script.defer = true;
+      script.onload = () => setIsLoaded(true);
+      document.head.appendChild(script);
+      return () => {
+        document.head.removeChild(script);
+      };
+    } else {
+      setIsLoaded(true);
+    }
+  }, [apiKey]);
+
+  // Perform reverse geocoding to get address from coordinates
+  const reverseGeocode = useCallback((location) => {
+    if (!window.google || !location) return;
+    
+    setIsReverseGeocoding(true);
+    const geocoder = new window.google.maps.Geocoder();
+    
+    geocoder.geocode({ location }, (results, status) => {
+      setIsReverseGeocoding(false);
+      
+      if (status === 'OK' && results[0]) {
+        const addressData = parseAddressComponents(results[0].address_components);
+        setAddressDetails(addressData);
+        setSearchInput(results[0].formatted_address);
+      } else {
+        console.error('Geocoder failed due to: ' + status);
+      }
+    });
+  }, []);
+
+  // Initialize map when API is loaded
+  useEffect(() => {
+    if (!isLoaded) return;
+
+    // If we have an address, geocode it to get coordinates
+    if (address && !initialLocation) {
+      const geocoder = new window.google.maps.Geocoder();
+      const addressString = `${address.street || ''}, ${address.city || ''}, ${address.state || ''} ${address.zipCode || ''}, ${address.country || ''}`;
+      
+      geocoder.geocode({ address: addressString }, (results, status) => {
+        if (status === 'OK' && results[0]) {
+          const location = {
+            lat: results[0].geometry.location.lat(),
+            lng: results[0].geometry.location.lng()
+          };
+          setSelectedLocation(location);
+          initMap(location);
+        } else {
+          // Default location if geocoding fails
+          initMap(selectedLocation);
+        }
+      });
+    } else {
+      initMap(selectedLocation);
+    }
+  }, [isLoaded, address, initialLocation, selectedLocation]);
+
+  const initMap = useCallback((location) => {
+    if (!isLoaded || !window.google) return;
+
+    const mapOptions = {
+      center: location,
+      zoom: 15,
+      mapTypeControl: true,
+      streetViewControl: true,
+      fullscreenControl: true
+    };
+
+    const mapInstance = new window.google.maps.Map(
+      document.getElementById('google-map'),
+      mapOptions
+    );
+
+    const markerInstance = new window.google.maps.Marker({
+      position: location,
+      map: mapInstance,
+      draggable: true,
+      animation: window.google.maps.Animation.DROP,
+      title: 'Property Location'
+    });
+
+    // Add event listener for marker drag end
+    markerInstance.addListener('dragend', () => {
+      const position = markerInstance.getPosition();
+      const newLocation = {
+        lat: position.lat(),
+        lng: position.lng()
+      };
+      setSelectedLocation(newLocation);
+      reverseGeocode(newLocation);
+    });
+
+    // Handle map click to set marker position
+    const handleMapClick = (event) => {
+      const clickedLocation = {
+        lat: event.latLng.lat(),
+        lng: event.latLng.lng()
+      };
+      
+      markerInstance.setPosition(clickedLocation);
+      setSelectedLocation(clickedLocation);
+      reverseGeocode(clickedLocation);
+    };
+
+    // Add click event to map
+    mapInstance.addListener('click', handleMapClick);
+
+    setMap(mapInstance);
+    setMarker(markerInstance);
+
+    // Initialize search box
+    const searchBox = new window.google.maps.places.SearchBox(
+      document.getElementById('map-search-input')
+    );
+
+    // Bias the SearchBox results towards current map's viewport
+    mapInstance.addListener('bounds_changed', () => {
+      searchBox.setBounds(mapInstance.getBounds());
+    });
+
+    // Listen for the event fired when the user selects a prediction and retrieve
+    // more details for that place
+    searchBox.addListener('places_changed', () => {
+      const places = searchBox.getPlaces();
+      if (places.length === 0) return;
+
+      const place = places[0];
+      if (!place.geometry || !place.geometry.location) return;
+
+      // Update marker and map
+      markerInstance.setPosition(place.geometry.location);
+      mapInstance.setCenter(place.geometry.location);
+      
+      const newLocation = {
+        lat: place.geometry.location.lat(),
+        lng: place.geometry.location.lng()
+      };
+      setSelectedLocation(newLocation);
+      
+      // Get address details from place
+      if (place.address_components) {
+        const addressData = parseAddressComponents(place.address_components);
+        setAddressDetails(addressData);
+      }
+      
+      setSearchInput(place.formatted_address);
+    });
+  }, [isLoaded, reverseGeocode]);
+
+  const handleConfirm = () => {
+    onLocationSelect({
+      coordinates: selectedLocation,
+      address: addressDetails,
+      formattedAddress: searchInput
+    });
+    onClose();
+  };
+
+  return (
+    <MapPickerContainer onClick={handleContainerClick}>
+      <MapHeader>
+        <MapTitle><FaMapMarkerAlt /> Select Property Location</MapTitle>
+        <CloseButton onClick={onClose}>×</CloseButton>
+      </MapHeader>
+      
+      <SearchContainer>
+        <SearchInput 
+          id="map-search-input"
+          type="text" 
+          placeholder="Search for a location..." 
+          value={searchInput}
+          onChange={(e) => setSearchInput(e.target.value)}
+          onKeyPress={(e) => {
+            if (e.key === 'Enter' && window.google && map) {
+              e.preventDefault();
+              const geocoder = new window.google.maps.Geocoder();
+              geocoder.geocode({ address: searchInput }, (results, status) => {
+                if (status === 'OK' && results[0]) {
+                  const location = results[0].geometry.location;
+                  map.setCenter(location);
+                  marker.setPosition(location);
+                  setSelectedLocation({
+                    lat: location.lat(),
+                    lng: location.lng()
+                  });
+                  reverseGeocode({
+                    lat: location.lat(),
+                    lng: location.lng()
+                  });
+                }
+              });
+            }
+          }}
+        />
+        <SearchButton onClick={() => {
+          if (window.google && map) {
+            const geocoder = new window.google.maps.Geocoder();
+            geocoder.geocode({ address: searchInput }, (results, status) => {
+              if (status === 'OK' && results[0]) {
+                const location = results[0].geometry.location;
+                map.setCenter(location);
+                marker.setPosition(location);
+                setSelectedLocation({
+                  lat: location.lat(),
+                  lng: location.lng()
+                });
+                reverseGeocode({
+                  lat: location.lat(),
+                  lng: location.lng()
+                });
+              }
+            });
+          }
+        }}>
+          <FaSearchLocation />
+        </SearchButton>
+      </SearchContainer>
+      
+      <MapContainer id="google-map" />
+      
+      <CoordinatesDisplay>
+        <CoordinateLabel>Latitude: {selectedLocation.lat.toFixed(6)}</CoordinateLabel>
+        <CoordinateLabel>Longitude: {selectedLocation.lng.toFixed(6)}</CoordinateLabel>
+      </CoordinatesDisplay>
+      
+      {isReverseGeocoding ? (
+        <AddressInfo>
+          <FaMapMarked /> Loading address information...
+        </AddressInfo>
+      ) : addressDetails.street || addressDetails.city ? (
+        <AddressInfo>
+          <FaMapMarked /> {addressDetails.street} 
+          {addressDetails.unit && `, Unit ${addressDetails.unit}`}, 
+          {addressDetails.city}, {addressDetails.state} {addressDetails.zipCode}, 
+          {addressDetails.country}
+        </AddressInfo>
+      ) : null}
+      
+      <ButtonContainer>
+        <CancelButton onClick={onClose}>Cancel</CancelButton>
+        <ConfirmButton onClick={handleConfirm}>Confirm Location</ConfirmButton>
+      </ButtonContainer>
+    </MapPickerContainer>
+  );
+};
+
+// Styled Components
+const MapPickerContainer = styled.div`
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 90%;
+  max-width: 800px;
+  height: 80%;
+  max-height: 600px;
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+  z-index: 1000;
+`;
+
+const MapHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  border-bottom: 1px solid #e1e5e9;
+`;
+
+const MapTitle = styled.h3`
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  
+  svg {
+    color: #cb54f8;
+  }
+`;
+
+const CloseButton = styled.button`
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: #666;
+  
+  &:hover {
+    color: #333;
+  }
+`;
+
+const SearchContainer = styled.div`
+  display: flex;
+  padding: 16px;
+  gap: 8px;
+`;
+
+const SearchInput = styled.input`
+  flex: 1;
+  padding: 10px 12px;
+  border: 1px solid #e1e5e9;
+  border-radius: 4px;
+  font-size: 14px;
+  
+  &:focus {
+    outline: none;
+    border-color: #cb54f8;
+  }
+`;
+
+const SearchButton = styled.button`
+  background: #cb54f8;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  width: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  
+  &:hover {
+    background: #b13be0;
+  }
+`;
+
+const MapContainer = styled.div`
+  flex: 1;
+  width: 100%;
+`;
+
+const CoordinatesDisplay = styled.div`
+  display: flex;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background-color: #f9f9f9;
+  border-top: 1px solid #e1e5e9;
+`;
+
+const CoordinateLabel = styled.div`
+  font-family: monospace;
+  font-size: 14px;
+  color: #333;
+`;
+
+const AddressInfo = styled.div`
+  padding: 12px 16px;
+  background-color: #f0f0f0;
+  color: #333;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  
+  svg {
+    color: #cb54f8;
+  }
+`;
+
+const ButtonContainer = styled.div`
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 16px;
+  border-top: 1px solid #e1e5e9;
+`;
+
+const Button = styled.button`
+  padding: 10px 16px;
+  border-radius: 4px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+`;
+
+const CancelButton = styled(Button)`
+  background: #f1f1f1;
+  color: #333;
+  border: 1px solid #ddd;
+  
+  &:hover {
+    background: #e5e5e5;
+  }
+`;
+
+const ConfirmButton = styled(Button)`
+  background: #cb54f8;
+  color: white;
+  border: none;
+  
+  &:hover {
+    background: #b13be0;
+  }
+`;
+
+export default MapPicker;
