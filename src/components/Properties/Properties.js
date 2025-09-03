@@ -127,6 +127,7 @@ const Properties = () => {
           amenities: propertyData.amenities || [],
           preferences: propertyData.preferences || [],
           isAvailable: propertyData.isAvailable !== false,
+          isVerified: propertyData.isVerified !== false,
           photo: imageUrl,
           samplePhotos: propertyData.samplePhotos || [],
           location: propertyData.location || null,
@@ -155,6 +156,7 @@ const Properties = () => {
           amenities: propertyData.amenities || [],
           preferences: propertyData.preferences || [],
           isAvailable: propertyData.isAvailable !== false,
+          isVerified: propertyData.isVerified !== false,
           photo: imageUrl,
           samplePhotos: propertyData.samplePhotos || [],
           location: propertyData.location || null
