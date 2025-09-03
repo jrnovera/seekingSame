@@ -21,6 +21,7 @@ const PropertyModal = ({ isOpen, onClose, onSave, property, mode }) => {
     amenities: [],
     preferences: [],
     isAvailable: true,
+    isVerified: true,
     photo: 'https://via.placeholder.com/300x200',
     imageFile: null,
     location: {
@@ -59,6 +60,7 @@ const PropertyModal = ({ isOpen, onClose, onSave, property, mode }) => {
         amenities: property.amenities || [],
         preferences: property.preferences || [],
         isAvailable: property.isAvailable !== false,
+        isVerified: property.isVerified !== false,
         photo: property.photo || 'https://via.placeholder.com/300x200',
         imageFile: null,
         location: property.location || {
@@ -92,6 +94,7 @@ const PropertyModal = ({ isOpen, onClose, onSave, property, mode }) => {
         amenities: [],
         preferences: [],
         isAvailable: true,
+        isVerified: true,
         photo: 'https://via.placeholder.com/300x200',
         imageFile: null,
         location: {
@@ -576,6 +579,22 @@ const PropertyModal = ({ isOpen, onClose, onSave, property, mode }) => {
                   </CheckboxLabel>
                 </AvailabilityContainer>
               </FormGroup>
+              <FormGroup>
+                <ToggleContainer>
+                  <ToggleLabel>Featured</ToggleLabel>
+                  <ToggleSwitch disabled={mode === 'view'}>
+                    <ToggleInput
+                      type="checkbox"
+                      id="isVerified"
+                      name="isVerified"
+                      checked={formData.isVerified}
+                      onChange={handleChange}
+                      disabled={mode === 'view'}
+                    />
+                    <ToggleSlider />
+                  </ToggleSwitch>
+                </ToggleContainer>
+              </FormGroup>
             </FormRow>
 
             <FormRow>
@@ -672,6 +691,12 @@ const PropertyModal = ({ isOpen, onClose, onSave, property, mode }) => {
                   <InfoLabel>Status:</InfoLabel>
                   <InfoValue status={property.isAvailable ? 'available' : 'unavailable'}>
                     {property.isAvailable ? 'Available' : 'Unavailable'}
+                  </InfoValue>
+                </InfoRow>
+                <InfoRow>
+                  <InfoLabel>Verified:</InfoLabel>
+                  <InfoValue status={property.isVerified ? 'verified' : 'unverified'}>
+                    {property.isVerified ? 'Verified' : 'Not Verified'}
                   </InfoValue>
                 </InfoRow>
                 <InfoRow>
@@ -887,6 +912,8 @@ const InfoValue = styled.span`
       switch (props.status) {
         case 'available': return '#28a745';
         case 'unavailable': return '#dc3545';
+        case 'verified': return '#28a745';
+        case 'unverified': return '#ffc107';
         default: return '#333';
       }
     }
@@ -1156,6 +1183,77 @@ const ImagePreview = styled.div`
     height: 200px;
     object-fit: cover;
     display: block;
+  }
+`;
+
+// Toggle Switch Components
+const ToggleContainer = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+`;
+
+const ToggleLabel = styled.label`
+  font-weight: 600;
+  color: #333;
+  cursor: pointer;
+  font-size: 14px;
+`;
+
+const ToggleSwitch = styled.label`
+  position: relative;
+  display: inline-block;
+  width: 60px;
+  height: 34px;
+  cursor: ${props => props.disabled ? 'not-allowed' : 'pointer'};
+  opacity: ${props => props.disabled ? 0.6 : 1};
+`;
+
+const ToggleInput = styled.input`
+  opacity: 0;
+  width: 0;
+  height: 0;
+
+  &:checked + span {
+    background-color: #cb54f8;
+  }
+
+  &:checked + span:before {
+    transform: translateX(26px);
+  }
+
+  &:disabled + span {
+    cursor: not-allowed;
+  }
+`;
+
+const ToggleSlider = styled.span`
+  position: absolute;
+  cursor: inherit;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #ccc;
+  transition: 0.3s;
+  border-radius: 34px;
+
+  &:before {
+    position: absolute;
+    content: "";
+    height: 26px;
+    width: 26px;
+    left: 4px;
+    bottom: 4px;
+    background-color: white;
+    transition: 0.3s;
+    border-radius: 50%;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  }
+
+  &:hover:not(:disabled) {
+    background-color: #bbb;
   }
 `;
 
