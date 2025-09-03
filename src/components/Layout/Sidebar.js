@@ -2,16 +2,26 @@ import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import styled from 'styled-components';
 import { FaHome, FaBuilding, FaCog, FaTimes, FaUsers } from 'react-icons/fa';
+import { useAuth } from '../../context/AuthContext';
 
 const Sidebar = ({ isOpen, onClose }) => {
   const location = useLocation();
+  const { user } = useAuth();
 
   const menuItems = [
     { path: '/', icon: FaHome, label: 'Dashboard' },
     { path: '/properties', icon: FaBuilding, label: 'Properties' },
-    { path: '/users', icon: FaUsers, label: 'Users' },
+    { path: '/users', icon: FaUsers, label: 'Users', adminOnly: true },
     { path: '/settings', icon: FaCog, label: 'Settings' }
   ];
+
+  // Filter menu items based on user role
+  const filteredMenuItems = menuItems.filter(item => {
+    if (item.adminOnly) {
+      return user?.role === 'admin';
+    }
+    return true;
+  });
 
   return (
     <>
@@ -28,7 +38,7 @@ const Sidebar = ({ isOpen, onClose }) => {
         </SidebarHeader>
         
         <Navigation>
-          {menuItems.map((item) => (
+          {filteredMenuItems.map((item) => (
             <NavItem
               key={item.path}
               to={item.path}

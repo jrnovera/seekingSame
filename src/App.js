@@ -23,7 +23,7 @@ function App() {
             <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
               <Route index element={<Dashboard />} />
               <Route path="properties" element={<Properties />} />
-              <Route path="users" element={<Users />} />
+              <Route path="users" element={<AdminRoute><Users /></AdminRoute>} />
               <Route path="settings" element={<Settings />} />
             </Route>
           </Routes>
@@ -47,6 +47,13 @@ function App() {
 function ProtectedRoute({ children }) {
   const { user } = useAuth();
   return user ? children : <Navigate to="/login" />;
+}
+
+function AdminRoute({ children }) {
+  const { user } = useAuth();
+  if (!user) return <Navigate to="/login" />;
+  if (user.role !== 'admin') return <Navigate to="/" />;
+  return children;
 }
 
 export default App;

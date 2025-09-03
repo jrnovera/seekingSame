@@ -51,7 +51,7 @@ const Login = () => {
     <Container>
       <FormWrapper>
         <Header>
-          <LogoImage src="/assets/images/logo.png" alt="Logo" />
+          <LogoImage src="/logo192.png" alt="Logo" />
           <Title>seeking same</Title>
           <Subtitle>Sign in to your account</Subtitle>
         </Header>

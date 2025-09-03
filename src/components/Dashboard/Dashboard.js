@@ -76,9 +76,7 @@ const Dashboard = () => {
 
       <DashboardHeader>
         <HeaderLeft>
-          <LogoImage src="/assets/images/logo.png" alt="Logo" />
-
-        //ito po//
+          <LogoImage src="/logo192.png" alt="Logo" />
           <Title>Dashboard Overview</Title>
         </HeaderLeft>
       </DashboardHeader>
