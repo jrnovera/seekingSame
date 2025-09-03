@@ -18,6 +18,7 @@ const PropertyModal = ({ isOpen, onClose, onSave, property, mode }) => {
     bathroomType: 'Private',
     bedroomCount: 1,
     BathRoomCount: 1,
+    amenities: [],
     preferences: [],
     isAvailable: true,
     photo: 'https://via.placeholder.com/300x200',
@@ -55,6 +56,7 @@ const PropertyModal = ({ isOpen, onClose, onSave, property, mode }) => {
         bathroomType: property.bathroomType || 'Private',
         bedroomCount: property.bedroomCount || 1,
         BathRoomCount: property.BathRoomCount || 1,
+        amenities: property.amenities || [],
         preferences: property.preferences || [],
         isAvailable: property.isAvailable !== false,
         photo: property.photo || 'https://via.placeholder.com/300x200',
@@ -87,6 +89,7 @@ const PropertyModal = ({ isOpen, onClose, onSave, property, mode }) => {
         bathroomType: 'Private',
         bedroomCount: 1,
         BathRoomCount: 1,
+        amenities: [],
         preferences: [],
         isAvailable: true,
         photo: 'https://via.placeholder.com/300x200',
@@ -107,6 +110,24 @@ const PropertyModal = ({ isOpen, onClose, onSave, property, mode }) => {
       setImagePreview(null);
     }
   }, [property, mode, isOpen]);
+
+  // Amenity and Preference options
+  const AMENITY_OPTIONS = [
+    { key: 'parking', label: 'Parking available', emoji: '🚙' },
+    { key: 'internet', label: 'Internet included', emoji: '🖥️' },
+    { key: 'private_room', label: 'Private room', emoji: '🛁' },
+    { key: 'furnished', label: 'Furnished room', emoji: '🛏️' },
+    { key: 'accessible', label: 'Accessible property', emoji: '🧑‍🦽' },
+  ];
+
+  const PREFERENCE_OPTIONS = [
+    { key: 'lgbtq_friendly', label: 'LGBT+ friendly', emoji: '🏳️‍🌈' },
+    { key: 'cat_friendly', label: 'Cat friendly', emoji: '🐱' },
+    { key: 'dog_friendly', label: 'Dog friendly', emoji: '🐶' },
+    { key: 'children_friendly', label: 'Children friendly', emoji: '🧒' },
+    { key: 'students_welcome', label: 'Students welcome', emoji: '🎓' },
+    { key: 'seniors_welcome', label: '55+ years welcome', emoji: '👵' },
+  ];
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -131,6 +152,17 @@ const PropertyModal = ({ isOpen, onClose, onSave, property, mode }) => {
                   : value
       }));
     }
+  };
+
+  // Toggle a value inside an array field (e.g., amenities, preferences)
+  const handleToggleInArray = (field, item) => {
+    if (mode === 'view') return;
+    setFormData(prev => {
+      const arr = Array.isArray(prev[field]) ? prev[field] : [];
+      const exists = arr.includes(item);
+      const next = exists ? arr.filter(v => v !== item) : [...arr, item];
+      return { ...prev, [field]: next };
+    });
   };
   
   // Generate map URL based on address or coordinates
@@ -592,6 +624,48 @@ const PropertyModal = ({ isOpen, onClose, onSave, property, mode }) => {
               </FormGroup>
             </FormRow>
 
+            <FormSection>
+              <SectionTitle>Listing</SectionTitle>
+              <OptionGrid>
+                {AMENITY_OPTIONS.map(opt => (
+                  <OptionCard key={opt.key} disabled={mode === 'view'}>
+                    <CheckboxInput
+                      type="checkbox"
+                      id={`amenity_${opt.key}`}
+                      checked={formData.amenities.includes(opt.key)}
+                      onChange={() => handleToggleInArray('amenities', opt.key)}
+                      disabled={mode === 'view'}
+                    />
+                    <OptionLabel htmlFor={`amenity_${opt.key}`}>
+                      <Emoji>{opt.emoji}</Emoji>
+                      {opt.label}
+                    </OptionLabel>
+                  </OptionCard>
+                ))}
+              </OptionGrid>
+            </FormSection>
+
+            <FormSection>
+              <SectionTitle>Preferences</SectionTitle>
+              <OptionGrid>
+                {PREFERENCE_OPTIONS.map(opt => (
+                  <OptionCard key={opt.key} disabled={mode === 'view'}>
+                    <CheckboxInput
+                      type="checkbox"
+                      id={`pref_${opt.key}`}
+                      checked={formData.preferences.includes(opt.key)}
+                      onChange={() => handleToggleInArray('preferences', opt.key)}
+                      disabled={mode === 'view'}
+                    />
+                    <OptionLabel htmlFor={`pref_${opt.key}`}>
+                      <Emoji>{opt.emoji}</Emoji>
+                      {opt.label}
+                    </OptionLabel>
+                  </OptionCard>
+                ))}
+              </OptionGrid>
+            </FormSection>
+
             {property && mode === 'view' && (
               <ViewOnlyInfo>
                 <InfoRow>
@@ -637,7 +711,7 @@ const ModalOverlay = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
+  z-index: 1036;
   padding: 20px;
 `;
 
@@ -838,6 +912,56 @@ const CheckboxLabel = styled.label`
   color: #333;
   cursor: pointer;
   font-size: 14px;
+`;
+
+// Grid for amenity/preference options
+const OptionGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 12px;
+`;
+
+// Card-like wrapper for each option
+const OptionCard = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #e1e5e9;
+  border-radius: 8px;
+  background: #fff;
+  transition: box-shadow 0.2s, border-color 0.2s, opacity 0.2s;
+  opacity: ${props => (props.disabled ? 0.6 : 1)};
+  pointer-events: ${props => (props.disabled ? 'none' : 'auto')};
+
+  &:hover {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    border-color: #d8dde3;
+  }
+`;
+
+// Label next to emoji
+const OptionLabel = styled.label`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  color: #333;
+  font-weight: 600;
+  user-select: none;
+`;
+
+// Emoji bubble for visual cue
+const Emoji = styled.span`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: #f4ecff;
+  border: 1px solid #eadcff;
+  font-size: 16px;
 `;
 
 const FormActions = styled.div`
