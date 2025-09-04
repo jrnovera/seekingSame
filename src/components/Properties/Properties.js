@@ -15,7 +15,8 @@ import {
   updateDoc,
   deleteDoc,
   doc,
-  serverTimestamp
+  serverTimestamp,
+  where
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
@@ -29,19 +30,32 @@ const Properties = () => {
   const [selectedProperty, setSelectedProperty] = useState(null);
   const [modalMode, setModalMode] = useState('create');
 
-  // Simple Firestore subscription to fetch all properties
+  // Fetch properties created by the current user
   useEffect(() => {
-    const q = query(collection(db, 'property'), orderBy('name'));
+    if (!user) return; // Don't fetch if no user is signed in
+
+    const userRef = doc(db, 'users', user.id);
+    const q = query(
+      collection(db, 'property'), 
+      where('createdby', '==', userRef)
+    );
+    
     const unsub = onSnapshot(q, (snapshot) => {
       const items = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
-      setProperties(items);
-      setFilteredProperties(items);
+      // Sort by name on the client side
+      const sortedItems = items.sort((a, b) => {
+        const nameA = a.name?.toLowerCase() || '';
+        const nameB = b.name?.toLowerCase() || '';
+        return nameA.localeCompare(nameB);
+      });
+      setProperties(sortedItems);
+      setFilteredProperties(sortedItems);
     }, (err) => {
       console.error(err);
       toast.error('Failed to load properties');
     });
     return () => unsub();
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     let filtered = properties;
