@@ -30,15 +30,23 @@ const Properties = () => {
   const [selectedProperty, setSelectedProperty] = useState(null);
   const [modalMode, setModalMode] = useState('create');
 
-  // Fetch properties created by the current user
+  // Fetch properties based on user role
   useEffect(() => {
     if (!user) return; // Don't fetch if no user is signed in
 
-    const userRef = doc(db, 'users', user.id);
-    const q = query(
-      collection(db, 'property'), 
-      where('createdby', '==', userRef)
-    );
+    let q;
+    
+    // Admin and host roles can see all properties
+    if (user.role === 'admin' || user.role === 'host') {
+      q = query(collection(db, 'property'));
+    } else {
+      // Other roles only see properties they created
+      const userRef = doc(db, 'users', user.id);
+      q = query(
+        collection(db, 'property'), 
+        where('createdby', '==', userRef)
+      );
+    }
     
     const unsub = onSnapshot(q, (snapshot) => {
       const items = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
