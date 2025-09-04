@@ -36,11 +36,11 @@ const Properties = () => {
 
     let q;
     
-    // Admin and host roles can see all properties
-    if (user.role === 'admin' || user.role === 'host') {
+    // Only admin role can see all properties
+    if (user.role === 'admin') {
       q = query(collection(db, 'property'));
     } else {
-      // Other roles only see properties they created
+      // Host and other roles only see properties they created
       const userRef = doc(db, 'users', user.id);
       q = query(
         collection(db, 'property'), 
