@@ -1,7 +1,8 @@
 import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import styled from 'styled-components';
-import { FaHome, FaBuilding, FaCog, FaTimes, FaUsers } from 'react-icons/fa';
+import { FaHome, FaBuilding, FaCog, FaTimes, FaUsers, FaMoneyBill, FaBell } from 'react-icons/fa';
+import { AiOutlineMessage } from 'react-icons/ai';
 import { useAuth } from '../../context/AuthContext';
 
 const Sidebar = ({ isOpen, onClose }) => {
@@ -11,6 +12,9 @@ const Sidebar = ({ isOpen, onClose }) => {
   const menuItems = [
     { path: '/', icon: FaHome, label: 'Dashboard' },
     { path: '/properties', icon: FaBuilding, label: 'Properties' },
+    { path: '/notifications', icon: FaBell, label: 'Notifications', hostOnly: true },
+    { path: '/transactions', icon: FaMoneyBill, label: 'Transactions', hostOnly: true },
+    { path: '/chat', icon: AiOutlineMessage, label: 'Chat', hostOnly: true },
     { path: '/users', icon: FaUsers, label: 'Users', adminOnly: true },
     { path: '/settings', icon: FaCog, label: 'Settings' }
   ];
@@ -19,6 +23,9 @@ const Sidebar = ({ isOpen, onClose }) => {
   const filteredMenuItems = menuItems.filter(item => {
     if (item.adminOnly) {
       return user?.role === 'admin';
+    }
+    if (item.hostOnly) {
+      return user?.role === 'host' || user?.role === 'admin';
     }
     return true;
   });

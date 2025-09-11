@@ -32,7 +32,7 @@ export function AuthProvider({ children }) {
             id: fbUser.uid,
             email: fbUser.email,
             name: fbUser.displayName || fbUser.email?.split('@')[0],
-            role: userData?.role || 'host', // Default to 'host' role
+            role: (userData?.role || 'host')?.toLowerCase(), // normalize
             display_name: userData?.display_name || fbUser.displayName,
             photo_url: userData?.photo_url || null,
             phone_number: userData?.phone_number || null,

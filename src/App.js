@@ -10,6 +10,9 @@ import Properties from './components/Properties/Properties';
 import Settings from './components/Settings/Settings';
 import Users from './components/Users/Users';
 import Layout from './components/Layout/Layout';
+import ChatPage from './components/Chat/ChatPage';
+import Transactions from './components/Transactions/Transactions';
+import Notifications from './components/Notifications/Notifications';
 import { AuthProvider, useAuth } from './context/AuthContext';
 
 function App() {
@@ -23,6 +26,9 @@ function App() {
             <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
               <Route index element={<Dashboard />} />
               <Route path="properties" element={<Properties />} />
+              <Route path="chat" element={<ChatPage />} />
+              <Route path="notifications" element={<Notifications />} />
+              <Route path="transactions" element={<Transactions />} />
               <Route path="users" element={<AdminRoute><Users /></AdminRoute>} />
               <Route path="settings" element={<Settings />} />
             </Route>
