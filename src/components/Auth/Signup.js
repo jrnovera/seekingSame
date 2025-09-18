@@ -14,7 +14,7 @@ const Signup = () => {
     password: '',
     confirmPassword: '',
     phoneNumber: '',
-    idFile: null
+    idPhoto: null
   });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -48,7 +48,7 @@ const Signup = () => {
 
       setFormData({
         ...formData,
-        idFile: file
+        idPhoto: file
       });
 
       // Create preview for images
@@ -64,7 +64,7 @@ const Signup = () => {
     }
   };
 
-  const uploadIdDocument = async (file, userId) => {
+  const uploadIdPhoto = async (file, userId) => {
     if (!file) return null;
     
     const idRef = ref(storage, `user-ids/${userId}_${Date.now()}_${file.name}`);
@@ -83,7 +83,7 @@ const Signup = () => {
       return;
     }
 
-    if (!formData.idFile) {
+    if (!formData.idPhoto) {
       toast.error('Please upload your ID document');
       setLoading(false);
       return;
@@ -102,12 +102,12 @@ const Signup = () => {
     }
 
     try {
-      // Upload ID document first
-      toast.info('Uploading ID document...');
+      // Upload ID photo first
+      toast.info('Uploading ID photo...');
       const tempUserId = `temp_${Date.now()}`;
-      const idUrl = await uploadIdDocument(formData.idFile, tempUserId);
+      const idUrl = await uploadIdPhoto(formData.idPhoto, tempUserId);
       
-      // Create account with ID document URL and phone number
+      // Create account with ID photo URL and phone number
       const result = await signup(formData.name, formData.email, formData.password, formData.phoneNumber, idUrl);
       
       if (result.success) {
@@ -225,7 +225,7 @@ const Signup = () => {
               />
               <IdUploadLabel htmlFor="id-upload">
                 <FaUpload />
-                {formData.idFile ? formData.idFile.name : 'Choose ID Document'}
+                {formData.idPhoto ? formData.idPhoto.name : 'Choose ID Document'}
               </IdUploadLabel>
             </IdUploadContainer>
             <IdUploadHint>
@@ -236,10 +236,10 @@ const Signup = () => {
                 <img src={idPreview} alt="ID Preview" />
               </IdPreview>
             )}
-            {formData.idFile && formData.idFile.type === 'application/pdf' && (
+            {formData.idPhoto && formData.idPhoto.type === 'application/pdf' && (
               <PdfInfo>
                 <FaIdCard />
-                PDF uploaded: {formData.idFile.name}
+                PDF uploaded: {formData.idPhoto.name}
               </PdfInfo>
             )}
           </InputGroup>

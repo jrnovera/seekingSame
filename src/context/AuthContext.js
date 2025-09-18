@@ -35,12 +35,17 @@ export function AuthProvider({ children }) {
             role: (userData?.role || 'host')?.toLowerCase(), // normalize
             display_name: userData?.display_name || fbUser.displayName,
             photo_url: userData?.photo_url || null,
+            uid: fbUser.uid,
             phone_number: userData?.phone_number || null,
             created_time: userData?.created_time || null,
             isNewUser: userData?.isNewUser || false,
             favorites: userData?.favorites || [],
             walkthrough: userData?.walkthrough || false,
-            idDocumentUrl: userData?.idDocumentUrl || null
+            isVerified: userData?.isVerified || false,
+            isSuspended: userData?.isSuspended || false,
+            recentSearch: userData?.recentSearch || [],
+            idPhoto: userData?.idPhoto || null,
+            isSubscribe: userData?.isSubscribe || false
           };
           setUser(mappedUser);
         } catch (error) {
@@ -72,7 +77,7 @@ export function AuthProvider({ children }) {
     }
   };
 
-  const signup = async (name, email, password, phoneNumber = null, idDocumentUrl = null) => {
+  const signup = async (name, email, password, phoneNumber = null, idPhoto = null) => {
     try {
       const cred = await createUserWithEmailAndPassword(auth, email, password);
       if (name) {
@@ -92,7 +97,11 @@ export function AuthProvider({ children }) {
         role: 'host', // Default role for new accounts
         favorites: [],
         walkthrough: false,
-        idDocumentUrl: idDocumentUrl
+        isVerified: false,
+        isSuspended: false,
+        recentSearch: [],
+        idPhoto: idPhoto,
+        isSubscribe: false
       };
 
       await setDoc(doc(db, 'users', cred.user.uid), userProfile);
@@ -109,6 +118,7 @@ export function AuthProvider({ children }) {
 
   const value = {
     user,
+    setUser,  // Export setUser function to allow direct updates
     login,
     signup,
     logout,

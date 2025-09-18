@@ -3,9 +3,11 @@ import styled from 'styled-components';
 import { FaPlus, FaSearch } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import PropertyModal from './PropertyModal';
+import SubscribePrompt from '../Subscribe/SubscribePrompt';
 import PropertyCard from './PropertyCard';
 import { db, storage } from '../../firebase';
 import { useAuth } from '../../context/AuthContext';
+import { startCheckout } from '../../services/stripeService';
 import {
   collection,
   addDoc,
@@ -29,6 +31,8 @@ const Properties = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedProperty, setSelectedProperty] = useState(null);
   const [modalMode, setModalMode] = useState('create');
+  const [showSubscribePrompt, setShowSubscribePrompt] = useState(false);
+  const [subscribeLoading, setSubscribeLoading] = useState(false);
 
   // Fetch properties based on user role
   useEffect(() => {
@@ -86,9 +90,38 @@ const Properties = () => {
   }, [properties, searchTerm, filterStatus]);
 
   const handleCreateProperty = () => {
+    if (!user) {
+      toast.error('Please sign in first');
+      return;
+    }
+    // If user is not subscribed, show subscribe plans instead of opening modal
+    if (user.isSubscribe !== true) {
+      setShowSubscribePrompt(true);
+      return;
+    }
     setSelectedProperty(null);
     setModalMode('create');
     setIsModalOpen(true);
+  };
+
+  const handleSelectPlan = async (plan) => {
+    if (!user) return;
+    try {
+      setSubscribeLoading(true);
+      
+      // Launch Stripe Checkout - this will redirect the user to Stripe
+      toast.info('Redirecting to secure Stripe checkout...');
+      await startCheckout(plan, user);
+      
+      // If redirect succeeds, the function will not continue executing here
+      // The CheckoutHandler component will handle the redirect back from Stripe
+      // and create the subscription record in Firestore
+      
+    } catch (error) {
+      console.error('Stripe checkout error:', error);
+      toast.error('Failed to start checkout process. Please try again.');
+      setSubscribeLoading(false);
+    }
   };
 
   const handleEditProperty = (property) => {
@@ -254,6 +287,12 @@ const Properties = () => {
         onSave={handleSaveProperty}
         property={selectedProperty}
         mode={modalMode}
+      />
+      <SubscribePrompt
+        isOpen={showSubscribePrompt}
+        onClose={() => setShowSubscribePrompt(false)}
+        onSelectPlan={handleSelectPlan}
+        loading={subscribeLoading}
       />
     </PropertiesContainer>
   );

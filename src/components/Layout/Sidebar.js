@@ -1,7 +1,7 @@
 import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import styled from 'styled-components';
-import { FaHome, FaBuilding, FaCog, FaTimes, FaUsers, FaMoneyBill, FaBell } from 'react-icons/fa';
+import { FaHome, FaBuilding, FaCog, FaTimes, FaUsers, FaMoneyBill, FaBell, FaListAlt } from 'react-icons/fa';
 import { AiOutlineMessage } from 'react-icons/ai';
 import { useAuth } from '../../context/AuthContext';
 
@@ -15,6 +15,7 @@ const Sidebar = ({ isOpen, onClose }) => {
     { path: '/notifications', icon: FaBell, label: 'Notifications', hostOnly: true },
     { path: '/transactions', icon: FaMoneyBill, label: 'Transactions', hostOnly: true },
     { path: '/chat', icon: AiOutlineMessage, label: 'Chat', hostOnly: true },
+    { path: '/subscribe', icon: FaListAlt, label: 'Subscribe', adminOnly: true },
     { path: '/users', icon: FaUsers, label: 'Users', adminOnly: true },
     { path: '/settings', icon: FaCog, label: 'Settings' }
   ];
@@ -25,6 +26,11 @@ const Sidebar = ({ isOpen, onClose }) => {
       return user?.role === 'admin';
     }
     if (item.hostOnly) {
+      // Special-case Chat: only hosts should see it (not admins)
+      if (item.path === '/chat') {
+        return user?.role === 'host';
+      }
+      // Other host-only items are visible to host and admin unless specified otherwise
       return user?.role === 'host' || user?.role === 'admin';
     }
     return true;

@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import styled from 'styled-components';
-import { FaUser, FaEnvelope, FaIdCard, FaCalendarAlt, FaTimes, FaCheckCircle, FaBan, FaExclamationTriangle, FaToggleOn, FaToggleOff } from 'react-icons/fa';
+import { FaUser, FaEnvelope, FaIdCard, FaCalendarAlt, FaTimes, FaCheckCircle, FaBan, FaExclamationTriangle, FaToggleOn, FaToggleOff, FaCopy } from 'react-icons/fa';
 import { db } from '../../firebase';
 import { doc, updateDoc } from 'firebase/firestore';
 import { toast } from 'react-toastify';
@@ -8,6 +8,10 @@ import { toast } from 'react-toastify';
 const UserDetailModal = ({ user, onClose }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [userData, setUserData] = useState(user);
+  const [showIdImage, setShowIdImage] = useState(false);
+  const [idImageEnlarged, setIdImageEnlarged] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const idTimeoutRef = useRef(null);
   
   // Toggle user verification status
   const toggleVerification = async () => {
@@ -72,6 +76,58 @@ const UserDetailModal = ({ user, onClose }) => {
       return 'Invalid date';
     }
   };
+  
+  // Toggle showing ID image
+  const toggleShowIdImage = () => {
+    setShowIdImage(!showIdImage);
+  };
+  
+  // Toggle enlarged view of ID image
+  const toggleEnlargedView = (e) => {
+    if (showIdImage) {
+      e.stopPropagation();
+      setIdImageEnlarged(!idImageEnlarged);
+    }
+  };
+  
+  // Close enlarged view when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (idImageEnlarged && !e.target.closest('.id-image-container')) {
+        setIdImageEnlarged(false);
+      }
+    };
+    
+    if (idImageEnlarged) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [idImageEnlarged]);
+  
+  // Copy user ID to clipboard
+  const copyIdToClipboard = () => {
+    if (userData.id) {
+      navigator.clipboard.writeText(userData.id)
+        .then(() => {
+          setCopied(true);
+          // Reset copied state after 2 seconds
+          if (idTimeoutRef.current) {
+            clearTimeout(idTimeoutRef.current);
+          }
+          idTimeoutRef.current = setTimeout(() => {
+            setCopied(false);
+          }, 2000);
+          toast.success('User ID copied to clipboard');
+        })
+        .catch(err => {
+          console.error('Failed to copy ID:', err);
+          toast.error('Failed to copy ID');
+        });
+    }
+  };
 
   return (
     <ModalOverlay onClick={onClose}>
@@ -114,17 +170,58 @@ const UserDetailModal = ({ user, onClose }) => {
           </DetailItem>
           
           <DetailItem>
-            <DetailIcon>
+            <DetailIcon onClick={toggleShowIdImage} style={{ cursor: 'pointer' }}>
               <FaIdCard />
             </DetailIcon>
             <DetailContent>
-              <DetailLabel>ID Document</DetailLabel>
+              <DetailLabel>
+                ID Document
+                {userData.id && (
+                  <CopyButton onClick={copyIdToClipboard} title="Copy ID to clipboard">
+                    <FaCopy size={14} />
+                    {copied ? 'Copied!' : 'Copy ID'}
+                  </CopyButton>
+                )}
+              </DetailLabel>
               <DetailValue>
-                {userData.idDocument ? (
-                  <a href={userData.idDocument} target="_blank" rel="noopener noreferrer">
-                    View Document
-                  </a>
-                ) : 'No document provided'}
+                <IdToggleText onClick={toggleShowIdImage}>
+                  {showIdImage ? 'Hide ID Image' : 'Click to view ID image'}
+                </IdToggleText>
+                
+                {showIdImage && (
+                  <IdImageContainer className="id-image-container">
+                    {userData.idPhoto ? (
+                      <IdImage 
+                        src={userData.idPhoto} 
+                        alt="ID Document" 
+                        onClick={toggleEnlargedView}
+                        $enlarged={idImageEnlarged}
+                      />
+                    ) : (
+                      <NoIdImage>No ID image available</NoIdImage>
+                    )}
+                    {idImageEnlarged && userData.idPhoto && (
+                      <EnlargedImageOverlay>
+                        <EnlargedImage src={userData.idPhoto} alt="ID Document" />
+                        <CloseEnlargedButton onClick={(e) => toggleEnlargedView(e)}>
+                          <FaTimes />
+                        </CloseEnlargedButton>
+                      </EnlargedImageOverlay>
+                    )}
+                  </IdImageContainer>
+                )}
+              </DetailValue>
+            </DetailContent>
+          </DetailItem>
+          
+          <DetailItem>
+            <DetailIcon>
+              <FaUser />
+            </DetailIcon>
+            <DetailContent>
+              <DetailLabel>User ID</DetailLabel>
+              <DetailValue>
+                <IdText>{userData.id || 'No ID available'}</IdText>
               </DetailValue>
             </DetailContent>
           </DetailItem>
@@ -490,6 +587,117 @@ const CloseButtonFull = styled.button`
   &:hover {
     background: #efd6fe;
   }
+`;
+
+const CopyButton = styled.button`
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 10px;
+  padding: 2px 8px;
+  background: #f0f0f0;
+  border: none;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #555;
+  cursor: pointer;
+  transition: all 0.2s;
+  
+  &:hover {
+    background: #e0e0e0;
+    color: #333;
+  }
+`;
+
+const IdToggleText = styled.span`
+  color: #cb54f8;
+  font-size: 13px;
+  cursor: pointer;
+  display: inline-block;
+  margin-bottom: 8px;
+  
+  &:hover {
+    text-decoration: underline;
+  }
+`;
+
+const IdImageContainer = styled.div`
+  margin-top: 8px;
+  position: relative;
+  width: 100%;
+`;
+
+const IdImage = styled.img`
+  max-width: 100%;
+  max-height: ${props => props.$enlarged ? '90vh' : '200px'};
+  border-radius: 4px;
+  border: 1px solid #eee;
+  cursor: pointer;
+  transition: transform 0.2s;
+  
+  &:hover {
+    transform: ${props => props.$enlarged ? 'none' : 'scale(1.02)'};
+  }
+`;
+
+const NoIdImage = styled.div`
+  padding: 30px;
+  background: #f8f8f8;
+  border: 1px dashed #ddd;
+  border-radius: 4px;
+  color: #888;
+  text-align: center;
+  font-size: 14px;
+`;
+
+const EnlargedImageOverlay = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  padding: 20px;
+`;
+
+const EnlargedImage = styled.img`
+  max-width: 90%;
+  max-height: 90vh;
+  object-fit: contain;
+`;
+
+const CloseEnlargedButton = styled.button`
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  border: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 20px;
+  
+  &:hover {
+    background: rgba(255, 255, 255, 0.3);
+  }
+`;
+
+const IdText = styled.span`
+  font-family: monospace;
+  background: #f8f8f8;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 13px;
+  word-break: break-all;
 `;
 
 export default UserDetailModal;

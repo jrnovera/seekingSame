@@ -1,102 +1,245 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
+import { useAuth } from '../../context/AuthContext';
+import { fetchUserTransactions, filterTransactionsByType, filterTransactionsByUserAndPaidTo } from '../../services/transactionService';
 
 const Transactions = () => {
-  const data = [
-    { id: 'TXN-001', property: 'Sunnyvale Apartment 2B', tenant: 'John Doe', date: '2025-08-15', amount: 1800.0, status: 'Paid' },
-    { id: 'TXN-002', property: 'Downtown Loft 5A', tenant: 'Jane Smith', date: '2025-08-12', amount: 2200.0, status: 'Pending' },
-    { id: 'TXN-003', property: 'Cozy Cottage', tenant: 'Alex Johnson', date: '2025-08-01', amount: 1500.0, status: 'Paid' },
-    { id: 'TXN-004', property: 'Sunnyvale Apartment 2B', tenant: 'John Doe', date: '2025-07-15', amount: 1800.0, status: 'Paid' },
-    { id: 'TXN-005', property: 'Downtown Loft 5A', tenant: 'Jane Smith', date: '2025-07-12', amount: 2200.0, status: 'Paid' },
-  ];
+  const { user } = useAuth();
+  const [transactions, setTransactions] = useState([]);
+  const [filteredTransactions, setFilteredTransactions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [filter, setFilter] = useState('all'); // 'all', 'incoming', or 'outgoing'
+  const [paidToFilter, setPaidToFilter] = useState(''); // ID of user to filter by in paidTo field
+
+  useEffect(() => {
+    const loadTransactions = async () => {
+      if (!user) {
+        setLoading(false);
+        return;
+      }
+      
+      try {
+        setLoading(true);
+        // Use the enhanced fetchUserTransactions with options
+        const options = {};
+        if (paidToFilter) {
+          options.paidToId = paidToFilter;
+        }
+        if (filter !== 'all') {
+          options.filterType = filter;
+        }
+        
+        const fetchedTransactions = await fetchUserTransactions(user.id, options);
+        setTransactions(fetchedTransactions);
+        setFilteredTransactions(fetchedTransactions);
+        setLoading(false);
+      } catch (err) {
+        console.error('Error loading transactions:', err);
+        setError('Failed to load transactions. Please try again later.');
+        setLoading(false);
+      }
+    };
+
+    loadTransactions();
+  }, [user, filter, paidToFilter]);
+
+  // We no longer need this effect since filtering is now done at query time
+  // through the fetchUserTransactions function with options
+
+  const handleFilterChange = (newFilter) => {
+    setFilter(newFilter);
+  };
+  
+  const handlePaidToFilterChange = (userId) => {
+    setPaidToFilter(userId);
+  };
+  
+  const clearFilters = () => {
+    setFilter('all');
+    setPaidToFilter('');
+  };
 
   return (
     <Container>
       <Header>
         <Title>Transactions</Title>
-        <Subtitle>Static view of recent property transactions</Subtitle>
+        <Subtitle>Your transaction history</Subtitle>
       </Header>
+      
+      <FilterSection>
+        <FilterLabel>Transaction Type</FilterLabel>
+        <FilterContainer>
+          <FilterButton 
+            $active={filter === 'all'} 
+            onClick={() => handleFilterChange('all')}
+          >
+            All
+          </FilterButton>
+          <FilterButton 
+            $active={filter === 'incoming'} 
+            onClick={() => handleFilterChange('incoming')}
+          >
+            Received
+          </FilterButton>
+          <FilterButton 
+            $active={filter === 'outgoing'} 
+            onClick={() => handleFilterChange('outgoing')}
+          >
+            Sent
+          </FilterButton>
+        </FilterContainer>
+        
+        <FilterLabel>Filter by User</FilterLabel>
+        <FilterRow>
+          <UserFilterInput 
+            type="text" 
+            placeholder="Enter user ID to filter" 
+            value={paidToFilter} 
+            onChange={(e) => handlePaidToFilterChange(e.target.value)} 
+          />
+          {(filter !== 'all' || paidToFilter) && (
+            <ClearFiltersButton onClick={clearFilters}>
+              Clear Filters
+            </ClearFiltersButton>
+          )}
+        </FilterRow>
+        {paidToFilter && (
+          <ActiveFilter>
+            Filtering by user: <FilterHighlight>{paidToFilter}</FilterHighlight>
+            <RemoveFilterButton onClick={() => setPaidToFilter('')}>×</RemoveFilterButton>
+          </ActiveFilter>
+        )}
+      </FilterSection>
 
       <Cards>
         <StatCard>
           <StatLabel>Total Transactions</StatLabel>
-          <StatValue>{data.length}</StatValue>
+          <StatValue>{filteredTransactions.length}</StatValue>
         </StatCard>
         <StatCard>
-          <StatLabel>Total Collected</StatLabel>
+          <StatLabel>Total Received</StatLabel>
           <StatValue>
-            ${data.filter(d => d.status === 'Paid').reduce((s, d) => s + d.amount, 0).toLocaleString()}
+            ${filteredTransactions
+              .filter(d => d.type === 'incoming' && d.status === 'Paid')
+              .reduce((s, d) => s + (parseFloat(d.amount) || 0), 0)
+              .toLocaleString()}
           </StatValue>
         </StatCard>
         <StatCard>
-          <StatLabel>Pending</StatLabel>
-          <StatValue>{data.filter(d => d.status === 'Pending').length}</StatValue>
+          <StatLabel>Total Sent</StatLabel>
+          <StatValue>
+            ${filteredTransactions
+              .filter(d => d.type === 'outgoing' && d.status === 'Paid')
+              .reduce((s, d) => s + (parseFloat(d.amount) || 0), 0)
+              .toLocaleString()}
+          </StatValue>
         </StatCard>
       </Cards>
+      
+      {loading ? (
+        <LoadingContainer>
+          <LoadingSpinner />
+          <LoadingText>Loading transactions...</LoadingText>
+        </LoadingContainer>
+      ) : error ? (
+        <ErrorMessage>{error}</ErrorMessage>
+      ) : filteredTransactions.length === 0 ? (
+        <EmptyState>
+          <EmptyStateText>No transactions found</EmptyStateText>
+          <EmptyStateSubtext>Transactions will appear here once you send or receive payments</EmptyStateSubtext>
+        </EmptyState>
+      ) : (
 
-      {/* Desktop/Tablet table */}
-      <TableWrapper>
-        <Table>
-          <thead>
-            <tr>
-              <th>Transaction ID</th>
-              <th>Property</th>
-              <th>Tenant</th>
-              <th>Date</th>
-              <th>Amount</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.map((row) => (
-              <tr key={row.id}>
-                <td>{row.id}</td>
-                <td>{row.property}</td>
-                <td>{row.tenant}</td>
-                <td>{row.date}</td>
-                <td>${row.amount.toLocaleString()}</td>
-                <td>
-                  <Status $type={row.status}>{row.status}</Status>
-                </td>
+      <>
+        {/* Desktop/Tablet table */}
+        <TableWrapper>
+          <Table>
+            <thead>
+              <tr>
+                <th>Transaction ID</th>
+                <th>Type</th>
+                <th>Description</th>
+                <th>Date</th>
+                <th>Amount</th>
+                <th>Status</th>
               </tr>
-            ))}
-          </tbody>
-        </Table>
-      </TableWrapper>
+            </thead>
+            <tbody>
+              {filteredTransactions.map((row) => (
+                <tr key={row.id}>
+                  <td>{row.id.substring(0, 8)}...</td>
+                  <td>
+                    <TransactionType $type={row.type}>
+                      {row.type === 'incoming' ? 'Received' : 'Sent'}
+                    </TransactionType>
+                  </td>
+                  <td>{row.description || (row.property ? `Payment for ${row.property}` : 'Transaction')}</td>
+                  <td>{row.date instanceof Date ? row.date.toLocaleDateString() : 
+                      typeof row.date === 'object' && row.date?.toDate ? 
+                      row.date.toDate().toLocaleDateString() : 
+                      new Date(row.date).toLocaleDateString()}</td>
+                  <td>
+                    <Amount $type={row.type}>
+                      {row.type === 'incoming' ? '+' : '-'}${parseFloat(row.amount).toLocaleString()}
+                    </Amount>
+                  </td>
+                  <td>
+                    <Status $type={row.status || 'Paid'}>{row.status || 'Paid'}</Status>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </Table>
+        </TableWrapper>
 
-      {/* Mobile card list */}
-      <MobileList>
-        {data.map((row) => (
-          <MobileCard key={row.id}>
-            <MobileRow>
-              <MobileLabel>Transaction ID</MobileLabel>
-              <MobileValue>{row.id}</MobileValue>
-            </MobileRow>
-            <MobileRow>
-              <MobileLabel>Property</MobileLabel>
-              <MobileValue>{row.property}</MobileValue>
-            </MobileRow>
-            <MobileRow>
-              <MobileLabel>Tenant</MobileLabel>
-              <MobileValue>{row.tenant}</MobileValue>
-            </MobileRow>
-            <MobileRow>
-              <MobileLabel>Date</MobileLabel>
-              <MobileValue>{row.date}</MobileValue>
-            </MobileRow>
-            <MobileRow>
-              <MobileLabel>Amount</MobileLabel>
-              <MobileValue>${row.amount.toLocaleString()}</MobileValue>
-            </MobileRow>
-            <MobileRow>
-              <MobileLabel>Status</MobileLabel>
-              <MobileValue>
-                <Status $type={row.status}>{row.status}</Status>
-              </MobileValue>
-            </MobileRow>
-          </MobileCard>
-        ))}
-      </MobileList>
+        {/* Mobile card list */}
+        <MobileList>
+          {filteredTransactions.map((row) => (
+            <MobileCard key={row.id}>
+              <MobileRow>
+                <MobileLabel>Transaction ID</MobileLabel>
+                <MobileValue>{row.id.substring(0, 8)}...</MobileValue>
+              </MobileRow>
+              <MobileRow>
+                <MobileLabel>Type</MobileLabel>
+                <MobileValue>
+                  <TransactionType $type={row.type}>
+                    {row.type === 'incoming' ? 'Received' : 'Sent'}
+                  </TransactionType>
+                </MobileValue>
+              </MobileRow>
+              <MobileRow>
+                <MobileLabel>Description</MobileLabel>
+                <MobileValue>{row.description || (row.property ? `Payment for ${row.property}` : 'Transaction')}</MobileValue>
+              </MobileRow>
+              <MobileRow>
+                <MobileLabel>Date</MobileLabel>
+                <MobileValue>
+                  {row.date instanceof Date ? row.date.toLocaleDateString() : 
+                   typeof row.date === 'object' && row.date?.toDate ? 
+                   row.date.toDate().toLocaleDateString() : 
+                   new Date(row.date).toLocaleDateString()}
+                </MobileValue>
+              </MobileRow>
+              <MobileRow>
+                <MobileLabel>Amount</MobileLabel>
+                <MobileValue>
+                  <Amount $type={row.type}>
+                    {row.type === 'incoming' ? '+' : '-'}${parseFloat(row.amount).toLocaleString()}
+                  </Amount>
+                </MobileValue>
+              </MobileRow>
+              <MobileRow>
+                <MobileLabel>Status</MobileLabel>
+                <MobileValue>
+                  <Status $type={row.status || 'Paid'}>{row.status || 'Paid'}</Status>
+                </MobileValue>
+              </MobileRow>
+            </MobileCard>
+          ))}
+        </MobileList>
+      </>)}
     </Container>
   );
 };
@@ -248,6 +391,191 @@ const Table = styled.table`
     thead th { font-size: 12px; padding: 8px 10px; }
     tbody td { font-size: 12px; padding: 10px; }
   }
+`;
+
+const FilterSection = styled.div`
+  margin-bottom: 24px;
+`;
+
+const FilterLabel = styled.div`
+  font-size: 14px;
+  font-weight: 600;
+  color: #555;
+  margin-bottom: 8px;
+`;
+
+const FilterContainer = styled.div`
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+`;
+
+const FilterRow = styled.div`
+  display: flex;
+  gap: 10px;
+  margin-bottom: 10px;
+  align-items: center;
+  
+  @media (max-width: 480px) {
+    flex-direction: column;
+    align-items: stretch;
+  }
+`;
+
+const UserFilterInput = styled.input`
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 20px;
+  font-size: 14px;
+  flex: 1;
+  min-width: 200px;
+  
+  &:focus {
+    outline: none;
+    border-color: #6c5ce7;
+    box-shadow: 0 0 0 2px rgba(108, 92, 231, 0.1);
+  }
+`;
+
+const ClearFiltersButton = styled.button`
+  background: #f8f9fa;
+  color: #666;
+  border: 1px solid #ddd;
+  border-radius: 20px;
+  padding: 8px 16px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  
+  &:hover {
+    background: #f1f1f1;
+  }
+`;
+
+const ActiveFilter = styled.div`
+  display: inline-flex;
+  align-items: center;
+  background: #f0f4ff;
+  border: 1px solid #d0d8ff;
+  border-radius: 20px;
+  padding: 6px 12px;
+  font-size: 13px;
+  color: #555;
+  margin-bottom: 16px;
+`;
+
+const FilterHighlight = styled.span`
+  font-weight: 600;
+  color: #6c5ce7;
+  margin: 0 4px;
+`;
+
+const RemoveFilterButton = styled.button`
+  background: none;
+  border: none;
+  color: #999;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 0 0 0 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  
+  &:hover {
+    color: #666;
+  }
+`;
+
+const FilterButton = styled.button`
+  background: ${p => p.$active ? '#6c5ce7' : '#f8f9fa'};
+  color: ${p => p.$active ? '#fff' : '#666'};
+  border: 1px solid ${p => p.$active ? '#6c5ce7' : '#ddd'};
+  border-radius: 20px;
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  
+  &:hover {
+    background: ${p => p.$active ? '#6c5ce7' : '#f1f1f1'};
+  }
+`;
+
+const LoadingContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 0;
+`;
+
+const LoadingSpinner = styled.div`
+  border: 3px solid #f3f3f3;
+  border-top: 3px solid #6c5ce7;
+  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  animation: spin 1s linear infinite;
+  margin-bottom: 10px;
+  
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+`;
+
+const LoadingText = styled.p`
+  color: #666;
+  margin: 0;
+`;
+
+const ErrorMessage = styled.div`
+  background-color: #f8d7da;
+  color: #721c24;
+  padding: 16px;
+  border-radius: 8px;
+  margin: 20px 0;
+  text-align: center;
+`;
+
+const EmptyState = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 0;
+  background: #f9f9f9;
+  border-radius: 10px;
+  border: 1px dashed #ddd;
+`;
+
+const EmptyStateText = styled.h3`
+  color: #555;
+  margin: 0 0 10px 0;
+`;
+
+const EmptyStateSubtext = styled.p`
+  color: #888;
+  margin: 0;
+  text-align: center;
+`;
+
+const TransactionType = styled.span`
+  display: inline-block;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  color: ${p => (p.$type === 'incoming' ? '#155724' : '#721c24')};
+  background: ${p => (p.$type === 'incoming' ? '#d4edda' : '#f8d7da')};
+  border: 1px solid ${p => (p.$type === 'incoming' ? '#c3e6cb' : '#f5c6cb')};
+`;
+
+const Amount = styled.span`
+  color: ${p => (p.$type === 'incoming' ? '#28a745' : '#dc3545')};
+  font-weight: 600;
 `;
 
 const Status = styled.span`

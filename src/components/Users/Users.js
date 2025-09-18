@@ -22,8 +22,10 @@ const Users = () => {
         id: doc.id,
         ...doc.data()
       }));
-      setUsers(usersData);
-      setFilteredUsers(usersData);
+      // Exclude admin users (case-insensitive)
+      const nonAdminUsers = usersData.filter(u => (u.role || '').toLowerCase() !== 'admin');
+      setUsers(nonAdminUsers);
+      setFilteredUsers(nonAdminUsers);
     }, (error) => {
       console.error('Error fetching users:', error);
       toast.error('Failed to load users');
