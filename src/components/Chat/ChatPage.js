@@ -5,7 +5,7 @@ import { Navigate } from 'react-router-dom';
 import { getOtherParticipant, sendMessage, subscribeToMessages, subscribeToUserChats } from '../../services/chatService';
 import { uploadChatImage, validateImageFile } from '../../services/imageService';
 import { FiImage, FiSend, FiArrowLeft } from 'react-icons/fi';
-
+  
 const ChatPage = () => {
   const { user } = useAuth();
   const [chatList, setChatList] = useState([]);

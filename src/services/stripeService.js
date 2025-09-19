@@ -1,8 +1,13 @@
 import { loadStripe } from '@stripe/stripe-js';
 
 // IMPORTANT: Use only the publishable (public) key on the client
-// The user provided publishable key:
-const STRIPE_PUBLISHABLE_KEY = 'pk_test_51S3PJXLZklpl5XPjcRXR4pW4iO5kvQDC6M1foqAbhwspadC3iUSrZJYvrBP0G2eTdjRUZCKMW8XlZLWQhNpRYbu300mUygQ4Oz';
+// Read from env (Create React App exposes REACT_APP_* to the client)
+const STRIPE_PUBLISHABLE_KEY = process.env.REACT_APP_STRIPE_PUBLISHABLE_KEY;
+if (!STRIPE_PUBLISHABLE_KEY) {
+  // Throwing here helps catch misconfiguration early in development
+  // Do NOT put any secret key in the client bundle
+  throw new Error('Missing REACT_APP_STRIPE_PUBLISHABLE_KEY. Add it to your .env file.');
+}
 
 let stripePromise;
 const getStripe = () => {
