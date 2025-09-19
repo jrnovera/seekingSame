@@ -12,6 +12,10 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Import email routes
+const emailRoutes = require('./routes/email.js');
+app.use('/api/email', emailRoutes);
+
 // Read Stripe secret key from environment variables
 // Make sure to set STRIPE_SECRET_KEY in a local .env file (not committed)
 // and/or your deployment environment variables.
