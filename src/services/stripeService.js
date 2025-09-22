@@ -17,87 +17,117 @@ const getStripe = () => {
   return stripePromise;
 };
 
+// Get Firebase Auth token for API calls
+async function getFirebaseToken() {
+  try {
+    const { auth } = await import('../firebase');
+    const user = auth.currentUser;
+    
+    if (!user) {
+      throw new Error('User not authenticated');
+    }
+    
+    // Get ID token for the authenticated user
+    const token = await user.getIdToken();
+    return token;
+  } catch (error) {
+    console.error('Error getting Firebase token:', error);
+    throw new Error('Authentication required for checkout');
+  }
+}
+
 /**
- * Start Stripe Checkout by requesting a Checkout Session from your backend,
- * then redirecting the browser to Stripe.
- *
- * Backend requirement (example endpoint):
- *   POST /api/create-checkout-session
- *   body: {
- *     priceId?: string, // If you have price ids configured in Stripe
- *     amount?: number,  // Fallback: pass amount in cents for one-time
- *     currency: 'usd',
- *     mode: 'subscription' | 'payment',
- *     metadata: { userId, email, planId, planName }
- *   }
- *   returns { id: '<session_id>' }
+ * Start Stripe Checkout by calling the dedicated stripe-backend-server
+ * 
+ * API Endpoint: POST /api/payments/create-checkout-session
+ * Required headers: Authorization: Bearer <firebase-token>
+ * Body: {
+ *   userId: string,
+ *   priceId: string, // Stripe Price ID from dashboard
+ *   mode: 'subscription' | 'payment',
+ *   metadata?: object
+ * }
+ * Returns: { success: true, data: { sessionId: string, url: string } }
  */
 export async function startCheckout(plan, user) {
-  const stripe = await getStripe();
-
-  // Try to create a Checkout Session via your backend
-  // Adjust the URL to match your backend server (Netlify Function, Vercel, or custom server)
-  // First try the proxy URL, then fallback to direct URL with port 4244
-  const backendUrl = process.env.REACT_APP_BACKEND_URL || '/api/create-checkout-session';
-  // Fallback URL if proxy fails
-  const fallbackUrl = 'http://localhost:4244/api/create-checkout-session';
-
-  const payload = {
-    // Pass amount in cents for the server to create price
-    amount: Math.round(plan.price * 100), // cents
-    currency: 'usd',
-    mode: 'subscription',
-    metadata: {
-      userId: user?.id,
-      email: user?.email,
-      name: user?.display_name || user?.name,
-      planId: plan.id,
-      planName: plan.name,
-    },
-    // Success/cancel URLs are set server-side with session_id parameter
-    // The CheckoutHandler component will process these URLs when Stripe redirects back
-  };
-
-  // Try the primary URL first
-  let data;
   try {
-    const res = await fetch(backendUrl, {
+    // Get Firebase authentication token
+    const firebaseToken = await getFirebaseToken();
+    
+    // Stripe backend server URL
+    const STRIPE_BACKEND_URL = process.env.REACT_APP_STRIPE_BACKEND_URL || 'http://localhost:3001';
+    const checkoutUrl = `${STRIPE_BACKEND_URL}/api/payments/create-checkout-session`;
+    
+    // Prepare payload for the new API
+    const payload = {
+      userId: user?.uid || user?.id, // Firebase UID
+      priceId: plan.priceId, // Stripe Price ID from your dashboard
+      mode: plan.mode || 'subscription', // Default to subscription
+      metadata: {
+        planId: plan.id,
+        planName: plan.name,
+        planPrice: plan.price,
+        userEmail: user?.email,
+        userName: user?.display_name || user?.displayName || user?.name
+      },
+      // Simple URLs without Stripe placeholders - Stripe will append session_id automatically
+      successUrl: `${window.location.origin}/checkout-success`,
+      cancelUrl: `${window.location.origin}/checkout-cancel`
+    };
+
+    console.log('Plan object received:', plan);
+    console.log('Creating checkout session with payload:', payload);
+
+    if (!payload.priceId) {
+      console.error('ERROR: priceId is missing from payload!', {
+        plan,
+        priceId: plan.priceId,
+        envVars: {
+          REACT_APP_BASIC_PRICE_ID: process.env.REACT_APP_BASIC_PRICE_ID,
+          REACT_APP_ADVANCED_PRICE_ID: process.env.REACT_APP_ADVANCED_PRICE_ID
+        }
+      });
+      throw new Error('Price ID is missing. Please check environment variables.');
+    }
+
+    // Call the stripe-backend-server API
+    const response = await fetch(checkoutUrl, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${firebaseToken}`
+      },
+      body: JSON.stringify(payload)
     });
 
-    if (res.ok) {
-      data = await res.json();
-    } else {
-      const text = await res.text();
-      console.warn(`Primary URL failed: ${text}, trying fallback...`);
-      throw new Error('Primary URL failed');
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Stripe backend error:', errorText);
+      throw new Error(`Stripe backend error: ${response.status} ${errorText}`);
     }
-  } catch (err) {
-    console.warn(`Error with primary URL: ${err.message}, trying fallback...`);
+
+    const result = await response.json();
     
-    // Try the fallback URL
-    const fallbackRes = await fetch(fallbackUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+    if (!result.success || !result.data?.sessionId) {
+      console.error('Invalid response from stripe backend:', result);
+      throw new Error('Invalid response from payment server');
+    }
+
+    console.log('Checkout session created successfully:', result.data.sessionId);
+
+    // Redirect to Stripe Checkout using the session ID
+    const stripe = await getStripe();
+    const { error } = await stripe.redirectToCheckout({ 
+      sessionId: result.data.sessionId 
     });
-
-    if (!fallbackRes.ok) {
-      const text = await fallbackRes.text();
-      throw new Error(`Stripe backend error: ${text}`);
-    }
     
-    data = await fallbackRes.json();
-  }
-  
-  if (!data?.id) {
-    throw new Error('No session id returned from backend');
-  }
+    if (error) {
+      console.error('Stripe redirect error:', error);
+      throw error;
+    }
 
-  const { error } = await stripe.redirectToCheckout({ sessionId: data.id });
-  if (error) {
+  } catch (error) {
+    console.error('Checkout process failed:', error);
     throw error;
   }
 }

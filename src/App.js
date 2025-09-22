@@ -17,6 +17,8 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import VerificationModal from './components/Auth/VerificationModal';
 import Subscribe from './components/Subscribe/Subscribe';
 import CheckoutHandler from './components/Subscribe/CheckoutHandler';
+import CheckoutSuccess from './components/Checkout/CheckoutSuccess';
+import CheckoutCancel from './components/Checkout/CheckoutCancel';
 
 function App() {
   return (
@@ -27,6 +29,11 @@ function App() {
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
+            
+            {/* Checkout routes - accessible without layout */}
+            <Route path="/checkout-success" element={<CheckoutSuccess />} />
+            <Route path="/checkout-cancel" element={<CheckoutCancel />} />
+            
             <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
               <Route index element={<Dashboard />} />
               <Route path="properties" element={<Properties />} />
