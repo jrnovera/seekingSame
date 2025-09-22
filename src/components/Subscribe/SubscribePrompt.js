@@ -2,9 +2,30 @@ import React from 'react';
 import styled from 'styled-components';
 
 const plans = [
-  { id: 'basic', name: 'Basic', price: 19.99, currency: 'USD', description: 'Essential tools to list properties' },
-  { id: 'pro', name: 'Pro', price: 49.99, currency: 'USD', description: 'Advanced features for serious hosts' },
+  {
+    id: 'basic',
+    name: 'Basic',
+    price: 19.99,
+    priceId: process.env.REACT_APP_BASIC_PRICE_ID || 'price_1S8E67LZklpl5XPjtGWpvWNa',
+    currency: 'USD',
+    description: 'Essential tools to list properties'
+  },
+  {
+    id: 'advanced',
+    name: 'Advanced',
+    price: 49.99,
+    priceId: process.env.REACT_APP_ADVANCED_PRICE_ID || 'price_1S8EAwLZklpl5XPj98Nk1X2x',
+    currency: 'USD',
+    description: 'Advanced features for serious hosts'
+  },
 ];
+
+// Debug log to check if environment variables are loaded
+console.log('Environment variables check:', {
+  REACT_APP_BASIC_PRICE_ID: process.env.REACT_APP_BASIC_PRICE_ID,
+  REACT_APP_ADVANCED_PRICE_ID: process.env.REACT_APP_ADVANCED_PRICE_ID,
+  plans: plans.map(p => ({ id: p.id, priceId: p.priceId }))
+});
 
 const SubscribePrompt = ({ isOpen, onClose, onSelectPlan, loading }) => {
   if (!isOpen) return null;

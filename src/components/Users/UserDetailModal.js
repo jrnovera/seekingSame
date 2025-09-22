@@ -4,10 +4,12 @@ import { FaUser, FaEnvelope, FaIdCard, FaCalendarAlt, FaTimes, FaCheckCircle, Fa
 import { db } from '../../firebase';
 import { doc, updateDoc } from 'firebase/firestore';
 import { toast } from 'react-toastify';
+import { sendVerificationEmail } from '../../services/emailjsService';
 
 const UserDetailModal = ({ user, onClose }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [userData, setUserData] = useState(user);
+  //console.log("check userData:", JSON.stringify(userData, null, 2))
   const [showIdImage, setShowIdImage] = useState(false);
   const [idImageEnlarged, setIdImageEnlarged] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -23,13 +25,31 @@ const UserDetailModal = ({ user, onClose }) => {
       await updateDoc(userRef, {
         isVerified: newStatus
       });
-      
       setUserData({
         ...userData,
         isVerified: newStatus
       });
       
-      toast.success(`User ${newStatus ? 'verified' : 'unverified'} successfully`);
+      // Send verification email if user is being verified
+      if (newStatus && userData.email) {
+        try {
+          const result = await sendVerificationEmail(
+            userData.email,
+            userData.display_name || userData.name
+          );
+          
+          if (result.success) {
+            toast.success('User verified and verification email sent successfully!');
+          } else {
+            toast.success('User verified successfully, but failed to send email');
+          }
+        } catch (emailError) {
+          console.error('Error sending verification email:', emailError);
+          toast.success('User verified successfully, but failed to send email');
+        }
+      } else {
+        toast.success(`User ${newStatus ? 'verified' : 'unverified'} successfully`);
+      }
     } catch (error) {
       console.error('Error updating verification status:', error);
       toast.error('Failed to update verification status');
