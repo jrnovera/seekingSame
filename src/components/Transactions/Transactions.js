@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { useAuth } from '../../context/AuthContext';
 import { db } from '../../firebase';
-import { collection, onSnapshot, query, where, orderBy } from 'firebase/firestore';
+import { collection, getDocs, onSnapshot, query, where, orderBy } from 'firebase/firestore';
+import { fetchUserTransactions } from '../../services/transactionService';
 
 const Transactions = () => {
   const { user } = useAuth();
@@ -19,53 +20,57 @@ const Transactions = () => {
       return;
     }
 
-    setLoading(true);
-
-    // Build role-based query for subscriber collection
-    const baseCol = collection(db, 'subscriber');
     const isAdmin = (user.role || '').toLowerCase() === 'admin';
-    const q = isAdmin
-      ? query(baseCol, orderBy('createdAt', 'desc'))
-      : query(baseCol, where('userId', '==', user.id));
+    setLoading(true);
+    setError(null);
 
-    const unsub = onSnapshot(q, (snap) => {
+    const load = async () => {
       try {
-        let items = snap.docs.map((d) => {
-          const data = d.data() || {};
-          const createdAtVal = data.createdAt?.toDate ? data.createdAt.toDate() : (data.createdAt ? new Date(data.createdAt) : new Date());
-          // Determine transaction type relative to current user
-          const rowType = isAdmin ? 'incoming' : 'outgoing';
-          const normalizedStatus = (data.status || 'Paid');
-
-          return {
-            id: d.id,
-            userId: data.userId || data.user?.id || '',
-            type: rowType, // admin sees incoming revenue; user sees outgoing payment
-            description: data.planName ? `Subscription - ${data.planName}` : 'Subscription',
-            date: createdAtVal,
-            amount: data.price || 0,
-            status: normalizedStatus === 'active' ? 'Paid' : normalizedStatus,
-            property: undefined
-          };
-        });
-
-        // Sort client-side by date desc if we did not orderBy in the query
-        items.sort((a, b) => (new Date(b.date)) - (new Date(a.date)));
-
-        setTransactions(items);
-        setLoading(false);
-      } catch (e) {
-        console.error('Error processing subscriber records:', e);
+        if (isAdmin) {
+          // Admin: load all transactions
+          const snap = await getDocs(collection(db, 'transaction'));
+          const items = snap.docs.map((d) => {
+            const data = d.data() || {};
+            const paidTo = data.paidTo;
+            const payerId = data.payerId;
+            const dateVal = data.date?.toDate ? data.date.toDate() : (data.date ? new Date(data.date) : new Date());
+            // Derive type relative to admin; if admin is not involved, default to 'incoming'
+            const rowType = payerId === user.id ? 'outgoing' : (paidTo === user.id ? 'incoming' : 'incoming');
+            return {
+              id: d.id,
+              userId: payerId,
+              type: rowType,
+              description: data.description || (data.property ? `Payment for ${data.property}` : 'Transaction'),
+              date: dateVal,
+              amount: data.amount || 0,
+              status: data.status || 'Paid',
+              property: data.property
+            };
+          }).sort((a, b) => new Date(b.date) - new Date(a.date));
+          setTransactions(items);
+        } else {
+          // Host: use existing service that labels incoming/outgoing for the current user
+          const items = await fetchUserTransactions(user.id, {});
+          setTransactions(items.map((t) => ({
+            id: t.id,
+            userId: t.payerId,
+            type: t.type,
+            description: t.description || (t.property ? `Payment for ${t.property}` : 'Transaction'),
+            date: t.date?.toDate ? t.date.toDate() : (t.date ? new Date(t.date) : new Date()),
+            amount: t.amount || 0,
+            status: t.status || 'Paid',
+            property: t.property
+          })));
+        }
+      } catch (err) {
+        console.error('Error loading transactions:', err);
         setError('Failed to load transactions. Please try again later.');
+      } finally {
         setLoading(false);
       }
-    }, (err) => {
-      console.error('Error loading subscriber records:', err);
-      setError('Failed to load transactions. Please try again later.');
-      setLoading(false);
-    });
+    };
 
-    return () => unsub();
+    load();
   }, [user]);
 
   // Apply simple client-side filters for type and userId (paidToFilter input)
