@@ -2,14 +2,22 @@ import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { FaUserTie, FaEnvelope, FaCalendarCheck, FaCheckCircle } from 'react-icons/fa';
 import { db } from '../../firebase';
-import { collection, onSnapshot } from 'firebase/firestore';
+import { collection, onSnapshot, query, where } from 'firebase/firestore';
+import { useAuth } from '../../context/AuthContext';
 
 const Subscribe = () => {
+  const { user } = useAuth();
   const [subs, setSubs] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsub = onSnapshot(collection(db, 'subscriber'), (snap) => {
+    if (!user) return;
+
+    const isAdmin = (user.role || '').toLowerCase() === 'admin';
+    const baseCol = collection(db, 'subscriber');
+    const q = isAdmin ? baseCol : query(baseCol, where('userId', '==', user.id));
+
+    const unsub = onSnapshot(q, (snap) => {
       const items = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
       // sort newest first by createdAt if available
       items.sort((a, b) => {
@@ -24,7 +32,7 @@ const Subscribe = () => {
       setLoading(false);
     });
     return () => unsub();
-  }, []);
+  }, [user]);
 
   const total = subs.length;
   const activeCount = subs.filter(s => (s.status || 'active') === 'active').length;
@@ -58,7 +66,8 @@ const Subscribe = () => {
             <tr>
               <th>Host</th>
               <th>Email</th>
-              <th>Subscribed Since</th>
+              <th>Start Date</th>
+              <th>Next Billing Date</th>
               <th>Status</th>
             </tr>
           </thead>
@@ -70,6 +79,9 @@ const Subscribe = () => {
             ) : (
               subs.map((h) => {
                 const since = h.createdAt?.toDate ? h.createdAt.toDate() : (h.createdAt ? new Date(h.createdAt) : null);
+                // Next billing date: exactly 1 month after createdAt
+                const nextBilling = since ? new Date(since) : null;
+                if (nextBilling) { nextBilling.setMonth(nextBilling.getMonth() + 1); }
                 const displayName = h.name || h.planName || 'Host';
                 return (
                   <tr key={h.id}>
@@ -91,6 +103,12 @@ const Subscribe = () => {
                       <SinceCell>
                         <FaCalendarCheck />
                         <span>{since ? since.toLocaleDateString() : '—'}</span>
+                      </SinceCell>
+                    </td>
+                    <td>
+                      <SinceCell>
+                        <FaCalendarCheck />
+                        <span>{nextBilling ? nextBilling.toLocaleDateString() : '—'}</span>
                       </SinceCell>
                     </td>
                     <td>
