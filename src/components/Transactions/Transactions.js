@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { useAuth } from '../../context/AuthContext';
-import { fetchUserTransactions, filterTransactionsByType, filterTransactionsByUserAndPaidTo } from '../../services/transactionService';
+import { db } from '../../firebase';
+import { collection, onSnapshot, query, where, orderBy } from 'firebase/firestore';
 
 const Transactions = () => {
   const { user } = useAuth();
@@ -13,36 +14,76 @@ const Transactions = () => {
   const [paidToFilter, setPaidToFilter] = useState(''); // ID of user to filter by in paidTo field
 
   useEffect(() => {
-    const loadTransactions = async () => {
-      if (!user) {
-        setLoading(false);
-        return;
-      }
-      
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+
+    // Build role-based query for subscriber collection
+    const baseCol = collection(db, 'subscriber');
+    const isAdmin = (user.role || '').toLowerCase() === 'admin';
+    const q = isAdmin
+      ? query(baseCol, orderBy('createdAt', 'desc'))
+      : query(baseCol, where('userId', '==', user.id));
+
+    const unsub = onSnapshot(q, (snap) => {
       try {
-        setLoading(true);
-        // Use the enhanced fetchUserTransactions with options
-        const options = {};
-        if (paidToFilter) {
-          options.paidToId = paidToFilter;
-        }
-        if (filter !== 'all') {
-          options.filterType = filter;
-        }
-        
-        const fetchedTransactions = await fetchUserTransactions(user.id, options);
-        setTransactions(fetchedTransactions);
-        setFilteredTransactions(fetchedTransactions);
+        let items = snap.docs.map((d) => {
+          const data = d.data() || {};
+          const createdAtVal = data.createdAt?.toDate ? data.createdAt.toDate() : (data.createdAt ? new Date(data.createdAt) : new Date());
+          // Determine transaction type relative to current user
+          const rowType = isAdmin ? 'incoming' : 'outgoing';
+          const normalizedStatus = (data.status || 'Paid');
+
+          return {
+            id: d.id,
+            userId: data.userId || data.user?.id || '',
+            type: rowType, // admin sees incoming revenue; user sees outgoing payment
+            description: data.planName ? `Subscription - ${data.planName}` : 'Subscription',
+            date: createdAtVal,
+            amount: data.price || 0,
+            status: normalizedStatus === 'active' ? 'Paid' : normalizedStatus,
+            property: undefined
+          };
+        });
+
+        // Sort client-side by date desc if we did not orderBy in the query
+        items.sort((a, b) => (new Date(b.date)) - (new Date(a.date)));
+
+        setTransactions(items);
         setLoading(false);
-      } catch (err) {
-        console.error('Error loading transactions:', err);
+      } catch (e) {
+        console.error('Error processing subscriber records:', e);
         setError('Failed to load transactions. Please try again later.');
         setLoading(false);
       }
-    };
+    }, (err) => {
+      console.error('Error loading subscriber records:', err);
+      setError('Failed to load transactions. Please try again later.');
+      setLoading(false);
+    });
 
-    loadTransactions();
-  }, [user, filter, paidToFilter]);
+    return () => unsub();
+  }, [user]);
+
+  // Apply simple client-side filters for type and userId (paidToFilter input)
+  useEffect(() => {
+    const isAdmin = (user?.role || '').toLowerCase() === 'admin';
+    let list = [...transactions];
+
+    if (filter !== 'all') {
+      list = list.filter((t) => t.type === filter);
+    }
+
+    if (paidToFilter) {
+      // For admin, filter any userId. For non-admin it will already be their own
+      list = list.filter((t) => (t.userId || '').toLowerCase().includes(paidToFilter.toLowerCase()));
+    }
+
+    setFilteredTransactions(list);
+  }, [transactions, filter, paidToFilter, user]);
 
   // We no longer need this effect since filtering is now done at query time
   // through the fetchUserTransactions function with options
