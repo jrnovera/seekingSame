@@ -154,15 +154,49 @@ const Properties = () => {
     const downloadURL = await getDownloadURL(snapshot.ref);
     return downloadURL;
   };
+  
+  // Upload multiple sample photos
+  const uploadSamplePhotos = async (photoFiles) => {
+    if (!photoFiles || photoFiles.length === 0) return [];
+    
+    const uploadPromises = photoFiles.map(async (file) => {
+      try {
+        const imageRef = ref(storage, `properties/samples/${Date.now()}_${file.name}`);
+        const snapshot = await uploadBytes(imageRef, file);
+        const downloadURL = await getDownloadURL(snapshot.ref);
+        return downloadURL;
+      } catch (error) {
+        console.error('Error uploading sample photo:', error);
+        return null;
+      }
+    });
+    
+    const results = await Promise.all(uploadPromises);
+    return results.filter(url => url !== null); // Filter out any failed uploads
+  };
 
   const handleSaveProperty = async (propertyData) => {
     try {
       let imageUrl = propertyData.image || 'https://via.placeholder.com/300x200';
+      let samplePhotoUrls = [];
       
-      // Upload image if a file was provided
+      // Upload main image if a file was provided
       if (propertyData.imageFile) {
-        toast.info('Uploading image...');
+        toast.info('Uploading main image...');
         imageUrl = await uploadImage(propertyData.imageFile);
+      }
+      
+      // Process sample photos
+      // First, keep any existing sample photo URLs
+      if (Array.isArray(propertyData.samplePhotos)) {
+        samplePhotoUrls = [...propertyData.samplePhotos];
+      }
+      
+      // Then upload any new sample photo files
+      if (propertyData.samplePhotosFiles && propertyData.samplePhotosFiles.length > 0) {
+        toast.info(`Uploading ${propertyData.samplePhotosFiles.length} sample photos...`);
+        const newPhotoUrls = await uploadSamplePhotos(propertyData.samplePhotosFiles);
+        samplePhotoUrls = [...samplePhotoUrls, ...newPhotoUrls];
       }
 
       if (modalMode === 'create') {
@@ -184,7 +218,7 @@ const Properties = () => {
           isAvailable: propertyData.isAvailable !== false,
           isVerified: propertyData.isVerified !== false,
           photo: imageUrl,
-          samplePhotos: propertyData.samplePhotos || [],
+          samplePhotos: samplePhotoUrls,
           location: propertyData.location || null,
           createdAt: serverTimestamp(),
           createdby: user ? doc(db, 'users', user.id) : null,
@@ -213,7 +247,7 @@ const Properties = () => {
           isAvailable: propertyData.isAvailable !== false,
           isVerified: propertyData.isVerified !== false,
           photo: imageUrl,
-          samplePhotos: propertyData.samplePhotos || [],
+          samplePhotos: samplePhotoUrls,
           location: propertyData.location || null
         });
         toast.success('Property updated successfully');

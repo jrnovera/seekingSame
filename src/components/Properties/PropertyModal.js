@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import styled from 'styled-components';
-import { FaTimes, FaSave, FaEdit, FaUpload, FaMapMarkerAlt } from 'react-icons/fa';
+import { FaTimes, FaSave, FaEdit, FaUpload, FaMapMarkerAlt, FaTrash, FaArrowLeft, FaArrowRight, FaExpand } from 'react-icons/fa';
 import MapPicker from './MapPicker';
 import { GOOGLE_MAPS_API_KEY } from '../../config/mapConfig';
 
@@ -15,6 +15,7 @@ const PropertyModal = ({ isOpen, onClose, onSave, property, mode }) => {
     categories: 'Room',
     price: '',
     deposit: '',
+    parkingSizeForRv: 0,
     bathroomType: 'Private',
     bedroomCount: 1,
     BathRoomCount: 1,
@@ -22,6 +23,7 @@ const PropertyModal = ({ isOpen, onClose, onSave, property, mode }) => {
     preferences: [],
     isAvailable: true,
     isVerified: true,
+    samplePhotos: [],
     photo: 'https://via.placeholder.com/300x200',
     imageFile: null,
     location: {
@@ -38,9 +40,15 @@ const PropertyModal = ({ isOpen, onClose, onSave, property, mode }) => {
     }
   });
   const [imagePreview, setImagePreview] = useState(null);
+  const [samplePhotosFiles, setSamplePhotosFiles] = useState([]);
+  const [samplePhotosPreview, setSamplePhotosPreview] = useState([]);
   const [mapInteractive, setMapInteractive] = useState(false);
   const [mapLoaded, setMapLoaded] = useState(false);
   const [showMapPicker, setShowMapPicker] = useState(false);
+  
+  // Photo gallery state
+  const [showGallery, setShowGallery] = useState(false);
+  const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
 
   useEffect(() => {
     if (property && (mode === 'edit' || mode === 'view')) {
@@ -54,6 +62,7 @@ const PropertyModal = ({ isOpen, onClose, onSave, property, mode }) => {
         categories: property.categories || 'Room',
         price: property.price || '',
         deposit: property.deposit || '',
+        parkingSizeForRv: property.parkingSizeForRv || 0,
         bathroomType: property.bathroomType || 'Private',
         bedroomCount: property.bedroomCount || 1,
         BathRoomCount: property.BathRoomCount || 1,
@@ -61,6 +70,7 @@ const PropertyModal = ({ isOpen, onClose, onSave, property, mode }) => {
         preferences: property.preferences || [],
         isAvailable: property.isAvailable !== false,
         isVerified: property.isVerified !== false,
+        samplePhotos: property.samplePhotos || [],
         photo: property.photo || 'https://via.placeholder.com/300x200',
         imageFile: null,
         location: property.location || {
@@ -77,6 +87,14 @@ const PropertyModal = ({ isOpen, onClose, onSave, property, mode }) => {
         }
       });
       setImagePreview(null);
+      
+      // If there are sample photos, set their previews
+      if (property.samplePhotos && property.samplePhotos.length > 0) {
+        setSamplePhotosPreview(property.samplePhotos.map(url => ({ url })));
+      } else {
+        setSamplePhotosPreview([]);
+      }
+      setSamplePhotosFiles([]);
     } else if (mode === 'create') {
       setFormData({
         name: '',
@@ -88,6 +106,7 @@ const PropertyModal = ({ isOpen, onClose, onSave, property, mode }) => {
         categories: 'Room',
         price: '',
         deposit: '',
+        parkingSizeForRv: 0,
         bathroomType: 'Private',
         bedroomCount: 1,
         BathRoomCount: 1,
@@ -95,6 +114,7 @@ const PropertyModal = ({ isOpen, onClose, onSave, property, mode }) => {
         preferences: [],
         isAvailable: true,
         isVerified: true,
+        samplePhotos: [],
         photo: 'https://via.placeholder.com/300x200',
         imageFile: null,
         location: {
@@ -111,6 +131,8 @@ const PropertyModal = ({ isOpen, onClose, onSave, property, mode }) => {
         }
       });
       setImagePreview(null);
+      setSamplePhotosPreview([]);
+      setSamplePhotosFiles([]);
     }
   }, [property, mode, isOpen]);
 
@@ -167,6 +189,11 @@ const PropertyModal = ({ isOpen, onClose, onSave, property, mode }) => {
       return { ...prev, [field]: next };
     });
   };
+  
+  // Check if the selected category is RV Space
+  const isRvSpace = useMemo(() => {
+    return formData.categories === 'RV Space';
+  }, [formData.categories]);
   
   // Generate map URL based on address or coordinates
   const mapUrl = useMemo(() => {
@@ -237,11 +264,107 @@ const PropertyModal = ({ isOpen, onClose, onSave, property, mode }) => {
       reader.readAsDataURL(file);
     }
   };
+  
+  // Handle sample photos upload
+  const handleSamplePhotosChange = (e) => {
+    if (mode === 'view') return;
+    
+    const files = Array.from(e.target.files);
+    if (files.length === 0) return;
+    
+    // Check if adding these files would exceed the 8 photo limit
+    const totalPhotos = samplePhotosFiles.length + files.length;
+    if (totalPhotos > 8) {
+      alert(`You can only upload a maximum of 8 photos. You're trying to add ${files.length} photos when you already have ${samplePhotosFiles.length}.`);
+      return;
+    }
+    
+    // Add the new files to the existing files
+    const newFiles = [...samplePhotosFiles, ...files];
+    setSamplePhotosFiles(newFiles);
+    
+    // Create previews for the new files
+    files.forEach(file => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setSamplePhotosPreview(prev => [...prev, {
+          file,
+          url: e.target.result
+        }]);
+      };
+      reader.readAsDataURL(file);
+    });
+    
+    // Update the form data with the new files
+    setFormData(prev => ({
+      ...prev,
+      samplePhotosFiles: newFiles
+    }));
+  };
+  
+  // Remove a sample photo
+  const handleRemoveSamplePhoto = (index) => {
+    if (mode === 'view') return;
+    
+    // Remove from preview
+    setSamplePhotosPreview(prev => prev.filter((_, i) => i !== index));
+    
+    // If it's a file (not a URL), remove from files array
+    if (samplePhotosFiles.length > index) {
+      setSamplePhotosFiles(prev => prev.filter((_, i) => i !== index));
+    }
+    
+    // Update form data
+    setFormData(prev => {
+      const updatedSamplePhotos = [...prev.samplePhotos];
+      updatedSamplePhotos.splice(index, 1);
+      return {
+        ...prev,
+        samplePhotos: updatedSamplePhotos
+      };
+    });
+  };
+  
+  // Open photo gallery with a specific photo
+  const openGallery = (index) => {
+    setCurrentPhotoIndex(index);
+    setShowGallery(true);
+  };
+  
+  // Close photo gallery
+  const closeGallery = () => {
+    setShowGallery(false);
+  };
+  
+  // Navigate to previous photo
+  const prevPhoto = () => {
+    setCurrentPhotoIndex(prev => 
+      prev === 0 ? samplePhotosPreview.length - 1 : prev - 1
+    );
+  };
+  
+  // Navigate to next photo
+  const nextPhoto = () => {
+    setCurrentPhotoIndex(prev => 
+      prev === samplePhotosPreview.length - 1 ? 0 : prev + 1
+    );
+  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
     if (mode !== 'view') {
-      onSave(formData);
+      // Create a copy of formData with the updated sample photos information
+      const updatedFormData = {
+        ...formData,
+        // Include sample photos files for upload
+        samplePhotosFiles: samplePhotosFiles,
+        // For existing photos that are URLs, keep them in the samplePhotos array
+        samplePhotos: samplePhotosPreview
+          .filter(photo => !photo.file) // Filter out file objects
+          .map(photo => photo.url)      // Keep only the URLs
+      };
+      
+      onSave(updatedFormData);
     }
   };
 
@@ -263,10 +386,58 @@ const PropertyModal = ({ isOpen, onClose, onSave, property, mode }) => {
   return (
     <ModalOverlay isOpen={isOpen} onClick={(e) => {
       // Only close if clicking directly on the overlay, not its children
-      if (e.target === e.currentTarget && !showMapPicker) {
+      if (e.target === e.currentTarget && !showMapPicker && !showGallery) {
         onClose();
       }
     }}>
+      {/* Photo Gallery Modal */}
+      {showGallery && samplePhotosPreview.length > 0 && (
+        <GalleryOverlay onClick={(e) => {
+          if (e.target === e.currentTarget) {
+            closeGallery();
+          }
+        }}>
+          <GalleryContainer>
+            <GalleryCloseButton onClick={closeGallery}>
+              <FaTimes />
+            </GalleryCloseButton>
+            
+            <GalleryContent>
+              <GalleryNavButton onClick={prevPhoto} position="left">
+                <FaArrowLeft />
+              </GalleryNavButton>
+              
+              <GalleryImageContainer>
+                <GalleryImage 
+                  src={samplePhotosPreview[currentPhotoIndex].url} 
+                  alt={`Property photo ${currentPhotoIndex + 1}`} 
+                />
+              </GalleryImageContainer>
+              
+              <GalleryNavButton onClick={nextPhoto} position="right">
+                <FaArrowRight />
+              </GalleryNavButton>
+            </GalleryContent>
+            
+            <GalleryCounter>
+              {currentPhotoIndex + 1} / {samplePhotosPreview.length}
+            </GalleryCounter>
+            
+            <GalleryThumbnails>
+              {samplePhotosPreview.map((photo, index) => (
+                <GalleryThumbnail 
+                  key={index}
+                  onClick={() => setCurrentPhotoIndex(index)}
+                  active={index === currentPhotoIndex}
+                >
+                  <img src={photo.url} alt={`Thumbnail ${index + 1}`} />
+                </GalleryThumbnail>
+              ))}
+            </GalleryThumbnails>
+          </GalleryContainer>
+        </GalleryOverlay>
+      )}
+      
       {showMapPicker && (
         <MapPicker
           apiKey={GOOGLE_MAPS_API_KEY}
@@ -443,7 +614,24 @@ const PropertyModal = ({ isOpen, onClose, onSave, property, mode }) => {
                 <Select
                   name="categories"
                   value={formData.categories}
-                  onChange={handleChange}
+                  onChange={(e) => {
+                    // Use the standard handleChange function
+                    handleChange(e);
+                    
+                    // If changing to or from RV Space, reset related fields
+                    if (e.target.value === 'RV Space' || formData.categories === 'RV Space') {
+                      setFormData(prev => ({
+                        ...prev,
+                        // Reset room-specific fields if switching to RV Space
+                        bedroomCount: e.target.value === 'RV Space' ? 0 : 1,
+                        BathRoomCount: e.target.value === 'RV Space' ? 0 : 1,
+                        capacity: e.target.value === 'RV Space' ? 0 : 1,
+                        bathroomType: e.target.value === 'RV Space' ? '' : 'Private',
+                        // Reset RV-specific fields if switching from RV Space
+                        parkingSizeForRv: e.target.value === 'RV Space' ? prev.parkingSizeForRv : 0
+                      }));
+                    }
+                  }}
                   disabled={mode === 'view'}
                 >
                   <option value="Room">Room</option>
@@ -482,61 +670,84 @@ const PropertyModal = ({ isOpen, onClose, onSave, property, mode }) => {
               </FormGroup>
             </FormRow>
 
-            <FormRow>
-              <FormGroup>
-                <Label>Bedroom Count</Label>
-                <Select
-                  name="bedroomCount"
-                  value={formData.bedroomCount}
-                  onChange={handleChange}
-                  disabled={mode === 'view'}
-                >
-                  {[1, 2, 3, 4, 5, 6].map(num => (
-                    <option key={num} value={num}>{num}</option>
-                  ))}
-                </Select>
-              </FormGroup>
-              <FormGroup>
-                <Label>Bathroom Count</Label>
-                <Select
-                  name="BathRoomCount"
-                  value={formData.BathRoomCount}
-                  onChange={handleChange}
-                  disabled={mode === 'view'}
-                >
-                  {[1, 2, 3, 4, 5, 6].map(num => (
-                    <option key={num} value={num}>{num}</option>
-                  ))}
-                </Select>
-              </FormGroup>
-            </FormRow>
+            {/* RV Space specific field */}
+            {isRvSpace && (
+              <FormRow>
+                <FormGroup>
+                  <Label>Parking Size for RV (sq ft)</Label>
+                  <Input
+                    type="number"
+                    name="parkingSizeForRv"
+                    value={formData.parkingSizeForRv}
+                    onChange={handleChange}
+                    placeholder="Enter parking size in square feet"
+                    min="0"
+                    disabled={mode === 'view'}
+                  />
+                </FormGroup>
+              </FormRow>
+            )}
+            
+            {/* Room-specific fields - only show if not RV Space */}
+            {!isRvSpace && (
+              <>
+                <FormRow>
+                  <FormGroup>
+                    <Label>Bedroom Count</Label>
+                    <Select
+                      name="bedroomCount"
+                      value={formData.bedroomCount}
+                      onChange={handleChange}
+                      disabled={mode === 'view'}
+                    >
+                      {[1, 2, 3, 4, 5, 6].map(num => (
+                        <option key={num} value={num}>{num}</option>
+                      ))}
+                    </Select>
+                  </FormGroup>
+                  <FormGroup>
+                    <Label>Bathroom Count</Label>
+                    <Select
+                      name="BathRoomCount"
+                      value={formData.BathRoomCount}
+                      onChange={handleChange}
+                      disabled={mode === 'view'}
+                    >
+                      {[1, 2, 3, 4, 5, 6].map(num => (
+                        <option key={num} value={num}>{num}</option>
+                      ))}
+                    </Select>
+                  </FormGroup>
+                </FormRow>
 
-            <FormRow>
-              <FormGroup>
-                <Label>Capacity</Label>
-                <Input
-                  type="number"
-                  name="capacity"
-                  value={formData.capacity}
-                  onChange={handleChange}
-                  placeholder="1"
-                  min="1"
-                  disabled={mode === 'view'}
-                />
-              </FormGroup>
-              <FormGroup>
-                <Label>Bathroom Type</Label>
-                <Select
-                  name="bathroomType"
-                  value={formData.bathroomType}
-                  onChange={handleChange}
-                  disabled={mode === 'view'}
-                >
-                  <option value="Private">Private</option>
-                  <option value="Shared">Shared</option>
-                </Select>
-              </FormGroup>
-            </FormRow>
+                <FormRow>
+                  <FormGroup>
+                    <Label>Capacity</Label>
+                    <Input
+                      type="number"
+                      name="capacity"
+                      value={formData.capacity}
+                      onChange={handleChange}
+                      placeholder="1"
+                      min="1"
+                      disabled={mode === 'view'}
+                    />
+                  </FormGroup>
+                  <FormGroup>
+                    <Label>Bathroom Type</Label>
+                    <Select
+                      name="bathroomType"
+                      value={formData.bathroomType}
+                      onChange={handleChange}
+                      disabled={mode === 'view'}
+                    >
+                      <option value="Private">Private</option>
+                      <option value="Shared">Shared</option>
+                    </Select>
+                  </FormGroup>
+                </FormRow>
+              </>
+            )}
 
             <FormRow>
               <FormGroup>
@@ -628,6 +839,75 @@ const PropertyModal = ({ isOpen, onClose, onSave, property, mode }) => {
                 )}
               </FormGroup>
             </FormRow>
+
+            <FormSection>
+              <SectionTitle>Sample Photos (Max 8)</SectionTitle>
+              <FormRow>
+                <FormGroup>
+                  {mode !== 'view' && (
+                    <>
+                      <ImageUploadContainer>
+                        <ImageUploadInput
+                          type="file"
+                          id="sample-photos-upload"
+                          accept="image/*"
+                          multiple
+                          onChange={handleSamplePhotosChange}
+                          disabled={samplePhotosPreview.length >= 8}
+                        />
+                        <ImageUploadLabel 
+                          htmlFor="sample-photos-upload"
+                          style={{ opacity: samplePhotosPreview.length >= 8 ? 0.5 : 1 }}
+                        >
+                          <FaUpload />
+                          {samplePhotosPreview.length >= 8 ? 'Maximum Photos Reached' : 'Add Photos'}
+                        </ImageUploadLabel>
+                        <PhotoCounter>{samplePhotosPreview.length}/8 photos</PhotoCounter>
+                      </ImageUploadContainer>
+                    </>
+                  )}
+                  
+                  {samplePhotosPreview.length > 0 && (
+                    <SamplePhotosGrid>
+                      {samplePhotosPreview.map((photo, index) => (
+                        <SamplePhotoItem key={index}>
+                          <SamplePhotoImage 
+                            src={photo.url} 
+                            alt={`Sample ${index + 1}`} 
+                            onClick={() => openGallery(index)}
+                          />
+                          {mode !== 'view' && (
+                            <RemovePhotoButton 
+                              type="button" 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleRemoveSamplePhoto(index);
+                              }}
+                              aria-label="Remove photo"
+                            >
+                              <FaTrash />
+                            </RemovePhotoButton>
+                          )}
+                          <ViewPhotoButton 
+                            type="button" 
+                            onClick={() => openGallery(index)}
+                            aria-label="View photo"
+                          >
+                            <FaExpand />
+                          </ViewPhotoButton>
+                        </SamplePhotoItem>
+                      ))}
+                    </SamplePhotosGrid>
+                  )}
+                  
+                  {samplePhotosPreview.length === 0 && (
+                    <EmptyPhotosMessage>
+                      {mode === 'view' ? 'No sample photos available.' : 'Add up to 8 sample photos of your property.'}
+                    </EmptyPhotosMessage>
+                  )}
+                </FormGroup>
+              </FormRow>
+            </FormSection>
 
             <FormRow>
               <FormGroup>
@@ -1254,6 +1534,251 @@ const ToggleSlider = styled.span`
 
   &:hover:not(:disabled) {
     background-color: #bbb;
+  }
+`;
+
+// Sample Photos Styling
+const SamplePhotosGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 15px;
+  margin-top: 20px;
+`;
+
+const SamplePhotoItem = styled.div`
+  position: relative;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  aspect-ratio: 1 / 1;
+`;
+
+const SamplePhotoImage = styled.img`
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform 0.3s ease;
+  
+  &:hover {
+    transform: scale(1.05);
+  }
+`;
+
+const RemovePhotoButton = styled.button`
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  background: rgba(255, 255, 255, 0.8);
+  border: none;
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #dc3545;
+  opacity: 0.8;
+  transition: opacity 0.2s, background-color 0.2s;
+  
+  &:hover {
+    opacity: 1;
+    background: rgba(255, 255, 255, 1);
+  }
+  
+  svg {
+    font-size: 14px;
+  }
+`;
+
+const PhotoCounter = styled.span`
+  margin-left: 10px;
+  background: #f0f0f0;
+  padding: 5px 10px;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #666;
+`;
+
+const EmptyPhotosMessage = styled.div`
+  padding: 20px;
+  text-align: center;
+  background: #f9f9f9;
+  border: 2px dashed #e1e5e9;
+  border-radius: 8px;
+  color: #666;
+  font-style: italic;
+  margin-top: 10px;
+`;
+
+// View photo button styling
+const ViewPhotoButton = styled.button`
+  position: absolute;
+  bottom: 5px;
+  right: 5px;
+  background: rgba(255, 255, 255, 0.8);
+  border: none;
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #17a2b8;
+  opacity: 0.8;
+  transition: opacity 0.2s, background-color 0.2s;
+  
+  &:hover {
+    opacity: 1;
+    background: rgba(255, 255, 255, 1);
+  }
+  
+  svg {
+    font-size: 14px;
+  }
+`;
+
+// Gallery styling
+const GalleryOverlay = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1037;
+  padding: 20px;
+`;
+
+const GalleryContainer = styled.div`
+  position: relative;
+  width: 100%;
+  max-width: 1000px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+`;
+
+const GalleryCloseButton = styled.button`
+  position: absolute;
+  top: -40px;
+  right: 0;
+  background: none;
+  border: none;
+  color: white;
+  font-size: 24px;
+  cursor: pointer;
+  z-index: 2;
+  padding: 8px;
+  
+  &:hover {
+    color: #cb54f8;
+  }
+`;
+
+const GalleryContent = styled.div`
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 70vh;
+  width: 100%;
+`;
+
+const GalleryImageContainer = styled.div`
+  height: 100%;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+`;
+
+const GalleryImage = styled.img`
+  max-height: 100%;
+  max-width: 100%;
+  object-fit: contain;
+  border-radius: 4px;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+`;
+
+const GalleryNavButton = styled.button`
+  position: absolute;
+  ${props => props.position === 'left' ? 'left: -50px;' : 'right: -50px;'}
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.2s;
+  
+  &:hover {
+    background: rgba(255, 255, 255, 0.4);
+  }
+  
+  @media (max-width: 768px) {
+    ${props => props.position === 'left' ? 'left: 10px;' : 'right: 10px;'}
+    width: 36px;
+    height: 36px;
+  }
+`;
+
+const GalleryCounter = styled.div`
+  color: white;
+  text-align: center;
+  margin: 15px 0;
+  font-size: 16px;
+`;
+
+const GalleryThumbnails = styled.div`
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding: 10px 0;
+  
+  &::-webkit-scrollbar {
+    height: 6px;
+  }
+  
+  &::-webkit-scrollbar-thumb {
+    background-color: rgba(255, 255, 255, 0.3);
+    border-radius: 3px;
+  }
+  
+  &::-webkit-scrollbar-track {
+    background-color: rgba(0, 0, 0, 0.3);
+  }
+`;
+
+const GalleryThumbnail = styled.div`
+  width: 60px;
+  height: 60px;
+  flex-shrink: 0;
+  border-radius: 4px;
+  overflow: hidden;
+  cursor: pointer;
+  border: 2px solid ${props => props.active ? '#cb54f8' : 'transparent'};
+  opacity: ${props => props.active ? 1 : 0.6};
+  transition: all 0.2s;
+  
+  &:hover {
+    opacity: 1;
+  }
+  
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
   }
 `;
 
