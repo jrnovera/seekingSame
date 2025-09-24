@@ -19,6 +19,8 @@ import Subscribe from './components/Subscribe/Subscribe';
 import CheckoutHandler from './components/Subscribe/CheckoutHandler';
 import CheckoutSuccess from './components/Checkout/CheckoutSuccess';
 import CheckoutCancel from './components/Checkout/CheckoutCancel';
+import MobilePaymentSuccess from './components/Payment/MobilePaymentSuccess';
+import MobilePaymentFailed from './components/Payment/MobilePaymentFailed';
 
 function App() {
   return (
@@ -33,6 +35,10 @@ function App() {
             {/* Checkout routes - accessible without layout */}
             <Route path="/checkout-success" element={<CheckoutSuccess />} />
             <Route path="/checkout-cancel" element={<CheckoutCancel />} />
+
+            {/* Mobile payment routes - accessible without layout */}
+            <Route path="/mobile-payment-success" element={<MobilePaymentSuccess />} />
+            <Route path="/mobile-payment-failed" element={<MobilePaymentFailed />} />
             
             <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
               <Route index element={<Dashboard />} />

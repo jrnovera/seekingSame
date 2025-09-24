@@ -2,17 +2,16 @@ import React, { useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useAuth } from '../../context/AuthContext';
 import { Navigate } from 'react-router-dom';
-import { getOtherParticipant, sendMessage, subscribeToMessages, subscribeToUserChats } from '../../services/chatService';
+import conversationService from '../../services/conversationService';
 import { uploadChatImage, validateImageFile } from '../../services/imageService';
 import { FiImage, FiSend, FiArrowLeft } from 'react-icons/fi';
   
 const ChatPage = () => {
   const { user } = useAuth();
-  const [chatList, setChatList] = useState([]);
-  const [selectedChat, setSelectedChat] = useState(null);
+  const [conversations, setConversations] = useState([]);
+  const [selectedConversation, setSelectedConversation] = useState(null);
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState('');
-  const [otherParticipants, setOtherParticipants] = useState({});
   const [uploading, setUploading] = useState(false);
   const [showMessages, setShowMessages] = useState(false); // For mobile navigation
   const endRef = useRef(null);
@@ -21,64 +20,46 @@ const ChatPage = () => {
   const isHost = user?.role === 'host' || user?.role === 'admin';
   const guard = !user ? 'login' : (!isHost ? 'home' : null);
 
-  // Subscribe to user's chats
+  // Subscribe to user's conversations
   useEffect(() => {
     if (!user?.id) return;
-    const unsub = subscribeToUserChats(user.id, setChatList);
+    const unsub = conversationService.subscribeToUserConversations(user.id, setConversations);
     return () => unsub && unsub();
   }, [user?.id]);
 
-  // Subscribe to messages for selected chat
+  // Subscribe to messages for selected conversation
   useEffect(() => {
-    if (!selectedChat?.ref) {
+    if (!selectedConversation?.id) {
       setMessages([]);
       return;
     }
-    const unsub = subscribeToMessages(selectedChat.ref, setMessages);
+    const unsub = conversationService.subscribeToMessages(selectedConversation.id, setMessages);
     return () => unsub && unsub();
-  }, [selectedChat?.id]);
+  }, [selectedConversation?.id]);
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Resolve other participants for chat list
-  useEffect(() => {
-    if (!chatList.length || !user?.id) return;
-    
-    const resolveParticipants = async () => {
-      const participants = {};
-      for (const chat of chatList) {
-        if (!otherParticipants[chat.id]) {
-          const other = await getOtherParticipant(chat, user.id);
-          if (other) participants[chat.id] = other;
-        }
-      }
-      if (Object.keys(participants).length > 0) {
-        setOtherParticipants(prev => ({ ...prev, ...participants }));
-      }
-    };
+  // No need for separate participant resolution with new structure
 
-    resolveParticipants();
-  }, [chatList, user?.id, otherParticipants]);
-
-  const handleChatSelect = (chat) => {
-    setSelectedChat(chat);
+  const handleConversationSelect = (conversation) => {
+    setSelectedConversation(conversation);
     setShowMessages(true); // Show messages view on mobile
   };
 
   const handleBackToList = () => {
     setShowMessages(false);
-    setSelectedChat(null);
+    setSelectedConversation(null);
   };
 
-  const canSend = selectedChat && (text.trim().length > 0 || uploading);
+  const canSend = selectedConversation && (text.trim().length > 0 || uploading);
 
   const onSend = async (e) => {
     e.preventDefault();
     if (!canSend || uploading) return;
-    await sendMessage({ chatDocumentRef: selectedChat.ref, ownerUid: user.id, text });
+    await conversationService.sendMessage(selectedConversation.id, user.id, text);
     setText('');
   };
 
@@ -88,7 +69,7 @@ const ChatPage = () => {
 
   const handleImageUpload = async (e) => {
     const file = e.target.files?.[0];
-    if (!file || !selectedChat) return;
+    if (!file || !selectedConversation) return;
 
     const validation = validateImageFile(file);
     if (!validation.valid) {
@@ -98,14 +79,9 @@ const ChatPage = () => {
 
     setUploading(true);
     try {
-      const result = await uploadChatImage(file, selectedChat.id, user.id);
+      const result = await uploadChatImage(file, selectedConversation.id, user.id);
       if (result.success) {
-        await sendMessage({ 
-          chatDocumentRef: selectedChat.ref, 
-          ownerUid: user.id, 
-          text: '', 
-          imagePath: result.url 
-        });
+        await conversationService.sendMessage(selectedConversation.id, user.id, '', result.url);
       } else {
         alert('Failed to upload image: ' + result.error);
       }
@@ -130,47 +106,49 @@ const ChatPage = () => {
             <h3>Conversations</h3>
           </ListHeader>
           <ConversationItems>
-            {chatList.map((chat) => {
-              const other = otherParticipants[chat.id];
+            {conversations.map((conversation) => {
+              const other = conversationService.getOtherParticipant(conversation, user.id);
               return (
                 <ConversationItem
-                  key={chat.id}
-                  $active={selectedChat?.id === chat.id}
-                  onClick={() => handleChatSelect(chat)}
+                  key={conversation.id}
+                  $active={selectedConversation?.id === conversation.id}
+                  onClick={() => handleConversationSelect(conversation)}
                 >
                   <Avatar>
-                    {(other?.display_name || other?.email || '?')[0].toUpperCase()}
+                    {(other?.displayName || other?.email || '?')[0].toUpperCase()}
                   </Avatar>
                   <ConversationInfo>
-                    <Name>{other?.display_name || other?.email || 'Unknown User'}</Name>
-                    <LastMessage>{chat.lastMessage || 'No messages yet'}</LastMessage>
+                    <Name>{other?.displayName || other?.email || 'Unknown User'}</Name>
+                    <LastMessage>{conversation.lastMessage?.text || 'No messages yet'}</LastMessage>
+                    <PropertyTitle>{conversation.propertyTitle}</PropertyTitle>
                   </ConversationInfo>
                 </ConversationItem>
               );
             })}
-            {chatList.length === 0 && (
+            {conversations.length === 0 && (
               <EmptyState>No conversations yet</EmptyState>
             )}
           </ConversationItems>
         </ConversationList>
 
         <ChatArea $hidden={!showMessages}>
-          {selectedChat ? (
+          {selectedConversation ? (
             <>
               <ChatHeader>
                 <BackButton onClick={handleBackToList}>
                   <FiArrowLeft />
                 </BackButton>
-                <h4>{otherParticipants[selectedChat.id]?.display_name || otherParticipants[selectedChat.id]?.email || 'Conversation'}</h4>
+                <h4>{conversationService.getOtherParticipant(selectedConversation, user.id)?.displayName || conversationService.getOtherParticipant(selectedConversation, user.id)?.email || 'Conversation'}</h4>
+                <PropertyInfo>{selectedConversation.propertyTitle}</PropertyInfo>
               </ChatHeader>
               <MessagesArea>
                 {messages.map((m) => (
-                  <Message key={m.id} $own={m.messegeOwner?.id === user.id}>
-                    <MessageBubble $own={m.messegeOwner?.id === user.id}>
+                  <Message key={m.id} $own={m.senderId === user.id}>
+                    <MessageBubble $own={m.senderId === user.id}>
                       {m.imagePath ? (
                         <MessageImage src={m.imagePath} alt="Shared image" />
                       ) : (
-                        m.message
+                        m.text
                       )}
                     </MessageBubble>
                   </Message>
@@ -192,10 +170,10 @@ const ChatPage = () => {
                   onChange={(e) => setText(e.target.value)}
                   disabled={uploading}
                 />
-                <ImageButton 
-                  type="button" 
+                <ImageButton
+                  type="button"
                   onClick={handleImageSelect}
-                  disabled={!selectedChat || uploading}
+                  disabled={!selectedConversation || uploading}
                   title="Send image"
                 >
                   <FiImage />
@@ -339,6 +317,16 @@ const LastMessage = styled.div`
   text-overflow: ellipsis;
 `;
 
+const PropertyTitle = styled.div`
+  font-size: 12px;
+  color: #999;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-style: italic;
+`;
+
 const EmptyState = styled.div`
   padding: 40px 20px;
   text-align: center;
@@ -375,6 +363,13 @@ const ChatHeader = styled.div`
     font-weight: 600;
     flex: 1;
   }
+`;
+
+const PropertyInfo = styled.div`
+  font-size: 12px;
+  color: #666;
+  margin-top: 2px;
+  font-style: italic;
 `;
 
 const BackButton = styled.button`
