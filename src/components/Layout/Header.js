@@ -36,7 +36,7 @@ const Header = ({ onToggleSidebar }) => {
         <MenuButton onClick={onToggleSidebar}>
           <FaBars />
         </MenuButton>
-        <Title>seeking same</Title>
+      
       </LeftSection>
       
       <RightSection>

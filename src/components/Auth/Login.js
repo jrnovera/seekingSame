@@ -52,7 +52,7 @@ const Login = () => {
       <FormWrapper>
         <Header>
           <LogoImage src="/logo192.png" alt="Logo" />
-          <Title>seeking same</Title>
+          <Title>Seeking Same</Title>
           <Subtitle>Sign in to your account</Subtitle>
         </Header>
         
@@ -71,7 +71,7 @@ const Login = () => {
           <InputGroup>
             <Label>Password</Label>
             <PasswordWrapper>
-              <Input
+              <PasswordInput
                 type={showPassword ? 'text' : 'password'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -105,7 +105,7 @@ const Container = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #cb54f8;
+  background:rgb(205, 131, 230);
   padding: 20px;
 `;
 
@@ -163,6 +163,8 @@ const Input = styled.input`
   border-radius: 8px;
   font-size: 16px;
   transition: border-color 0.3s ease;
+  width: 100%;
+  box-sizing: border-box;
 
   &:focus {
     outline: none;
@@ -172,6 +174,12 @@ const Input = styled.input`
 
 const PasswordWrapper = styled.div`
   position: relative;
+  width: 100%;
+`;
+
+const PasswordInput = styled(Input)`
+  /* Add right padding to avoid overlap with the toggle icon */
+  padding-right: 44px;
 `;
 
 const PasswordToggle = styled.button`

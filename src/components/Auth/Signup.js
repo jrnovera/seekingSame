@@ -128,8 +128,8 @@ const Signup = () => {
     <Container>
       <FormWrapper>
         <Header>
-          <LogoImage src="/assets/images/logo.png" alt="Logo" />
-          <Title>seeking same</Title>
+          <LogoImage src="logo192.png" alt="Logo" />
+          <Title>Seeking Same</Title>
           <Subtitle>Create your admin account</Subtitle>
         </Header>
         
@@ -173,7 +173,7 @@ const Signup = () => {
           <InputGroup>
             <Label>Password</Label>
             <PasswordWrapper>
-              <Input
+              <PasswordInput
                 type={showPassword ? 'text' : 'password'}
                 name="password"
                 value={formData.password}
@@ -193,7 +193,7 @@ const Signup = () => {
           <InputGroup>
             <Label>Confirm Password</Label>
             <PasswordWrapper>
-              <Input
+              <PasswordInput
                 type={showConfirmPassword ? 'text' : 'password'}
                 name="confirmPassword"
                 value={formData.confirmPassword}
@@ -320,6 +320,8 @@ const Input = styled.input`
   border-radius: 8px;
   font-size: 16px;
   transition: border-color 0.3s ease;
+  width: 100%;
+  box-sizing: border-box;
 
   &:focus {
     outline: none;
@@ -329,6 +331,12 @@ const Input = styled.input`
 
 const PasswordWrapper = styled.div`
   position: relative;
+  width: 100%;
+`;
+
+const PasswordInput = styled(Input)`
+  /* Extra right padding to accommodate the eye icon */
+  padding-right: 44px;
 `;
 
 const PasswordToggle = styled.button`
